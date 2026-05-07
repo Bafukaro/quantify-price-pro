@@ -201,11 +201,11 @@ export default function BuildingModel({
             shape.lineTo(-W / 2 - 0.3, 0);
             return (
               <mesh
-                position={[0, y, 0]}
+                position={[0, y, -(D + 0.6) / 2]}
                 rotation={[Math.PI / 2, 0, 0]}
                 castShadow
               >
-                <extrudeGeometry args={[shape, { depth: D + 0.6, bevelEnabled: false }]} />
+                <extrudeGeometry args={[shape, { depth: D + 0.6, bevelEnabled: false } as any]} />
                 {mat(c, o)}
               </mesh>
             );
