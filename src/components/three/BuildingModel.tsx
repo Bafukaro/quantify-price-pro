@@ -207,7 +207,6 @@ export default function BuildingModel({
               >
                 <extrudeGeometry args={[shape, { depth: D + 0.6, bevelEnabled: false }]} />
                 {mat(c, o)}
-                <group position={[0, 0, -(D + 0.6) / 2]} />
               </mesh>
             );
           }}
