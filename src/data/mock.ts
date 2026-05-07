@@ -155,3 +155,76 @@ export const phaseColors: Record<string, string> = {
 
 export const fmtMT = (n: number) =>
   new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 0 }).format(n) + " MT";
+
+// 3D Phase mapping → BoQ groups for cost breakdown per element
+export type Phase3D = "fundacao" | "pilares" | "lajes" | "alvenaria" | "cobertura" | "acabamentos";
+
+export const phase3DInfo: Record<Phase3D, {
+  label: string;
+  desc: string;
+  items: { item: string; desc: string; un: string; qty: number; preco: number }[];
+}> = {
+  fundacao: {
+    label: "Fundação",
+    desc: "Sapatas, vigas de fundação e betão de limpeza",
+    items: [
+      { item: "F.1", desc: "Escavação manual em terreno comum", un: "m³", qty: 96, preco: 420 },
+      { item: "F.2", desc: "Betão de limpeza C12/15", un: "m³", qty: 8.4, preco: 6800 },
+      { item: "F.3", desc: "Betão armado C25/30 em sapatas", un: "m³", qty: 42, preco: 9800 },
+      { item: "F.4", desc: "Aço A500 NR — sapatas", un: "kg", qty: 3850, preco: 142 },
+    ],
+  },
+  pilares: {
+    label: "Pilares (Arranques + Estrutura)",
+    desc: "Pilares em betão armado — 18 colunas, 3 pisos",
+    items: [
+      { item: "P.1", desc: "Cofragem em pilares 30x30", un: "m²", qty: 145, preco: 560 },
+      { item: "P.2", desc: "Betão C25/30 em pilares", un: "m³", qty: 14.6, preco: 9800 },
+      { item: "P.3", desc: "Aço A500 NR — pilares", un: "kg", qty: 2240, preco: 142 },
+    ],
+  },
+  lajes: {
+    label: "Lajes",
+    desc: "Lajes maciças e=18cm — 3 pisos",
+    items: [
+      { item: "L.1", desc: "Cofragem horizontal para lajes", un: "m²", qty: 288, preco: 480 },
+      { item: "L.2", desc: "Lajes maciças e=18cm betão C25/30", un: "m²", qty: 288, preco: 2680 },
+      { item: "L.3", desc: "Aço A500 NR — lajes", un: "kg", qty: 6480, preco: 142 },
+    ],
+  },
+  alvenaria: {
+    label: "Alvenaria",
+    desc: "Paredes exteriores e interiores em tijolo cerâmico",
+    items: [
+      { item: "A.1", desc: "Tijolo cerâmico furado 11x20x30", un: "un", qty: 18400, preco: 24 },
+      { item: "A.2", desc: "Argamassa de assentamento 1:4", un: "m³", qty: 26, preco: 7100 },
+      { item: "A.3", desc: "Reboco areado fino", un: "m²", qty: 1240, preco: 410 },
+    ],
+  },
+  cobertura: {
+    label: "Cobertura",
+    desc: "Estrutura e revestimento da cobertura",
+    items: [
+      { item: "C.1", desc: "Estrutura metálica de cobertura", un: "kg", qty: 1850, preco: 195 },
+      { item: "C.2", desc: "Chapa lacada para cobertura", un: "m²", qty: 110, preco: 1480 },
+      { item: "C.3", desc: "Caleiras e tubos de queda", un: "m", qty: 48, preco: 380 },
+    ],
+  },
+  acabamentos: {
+    label: "Acabamentos",
+    desc: "Janelas, portas, pinturas e pavimentos",
+    items: [
+      { item: "AC.1", desc: "Janela alumínio c/ vidro duplo", un: "un", qty: 12, preco: 12500 },
+      { item: "AC.2", desc: "Porta de entrada blindada", un: "un", qty: 1, preco: 38000 },
+      { item: "AC.3", desc: "Tinta plástica branca interior", un: "m²", qty: 1240, preco: 138 },
+      { item: "AC.4", desc: "Pavimento cerâmico 60x60", un: "m²", qty: 288, preco: 720 },
+    ],
+  },
+};
+
+export const phase3DTotals = (Object.entries(phase3DInfo) as [Phase3D, typeof phase3DInfo[Phase3D]][])
+  .map(([k, v]) => ({
+    key: k,
+    label: v.label,
+    total: v.items.reduce((a, i) => a + i.qty * i.preco, 0),
+  }));
