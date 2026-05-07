@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { projects, fmtMT } from "@/data/mock";
 import { AlertTriangle, ArrowUpRight, Plus, TrendingUp, Building2, Wallet } from "lucide-react";
+import DailyTasks from "@/components/dashboard/DailyTasks";
 
 export default function Dashboard() {
   const totalGerido = projects.reduce((a, p) => a + p.totalMT, 0);
@@ -28,17 +29,16 @@ export default function Dashboard() {
         <Kpi icon={AlertTriangle} label="Alertas activos" value={String(totalAlertas)} delta="3 desvios de preço" warn />
       </div>
 
-      {/* Action bar */}
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-2xl">Obras em curso</h2>
-        <button className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 shadow-soft">
-          <Plus className="size-4" /> Novo projecto
-        </button>
-      </div>
-
-      {/* Cards */}
-      <div className="grid md:grid-cols-2 gap-5">
-        {projects.map((p) => (
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-2xl">Obras em curso</h2>
+            <button className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 shadow-soft">
+              <Plus className="size-4" /> Novo projecto
+            </button>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-5">
+            {projects.map((p) => (
           <Link
             key={p.id}
             to={`/app/projecto/${p.id}`}
@@ -98,7 +98,10 @@ export default function Dashboard() {
               Última actualização · {p.updatedAt}
             </div>
           </Link>
-        ))}
+            ))}
+          </div>
+        </div>
+        <DailyTasks />
       </div>
     </div>
   );
