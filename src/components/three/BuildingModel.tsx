@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import * as THREE from "three";
+import "@react-three/fiber";
 
 export type PhaseKey = "fundacao" | "pilares" | "lajes" | "alvenaria" | "cobertura" | "acabamentos";
 
