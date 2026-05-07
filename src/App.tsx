@@ -11,6 +11,7 @@ import Project from "./pages/app/Project.tsx";
 import Prices from "./pages/app/Prices.tsx";
 import Audit from "./pages/app/Audit.tsx";
 import Schedule from "./pages/app/Schedule.tsx";
+import Model3D from "./pages/app/Model3D.tsx";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/app" element={<AppLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="projecto/:id" element={<Project />} />
+            <Route path="modelo-3d" element={<Model3D />} />
             <Route path="precos" element={<Prices />} />
             <Route path="auditoria" element={<Audit />} />
             <Route path="cronograma" element={<Schedule />} />
