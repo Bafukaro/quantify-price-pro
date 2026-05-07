@@ -1,7 +1,8 @@
-import { auditEntries } from "@/data/mock";
+import { useAudit } from "@/data/store";
 import { Download, Lock, FileSignature } from "lucide-react";
 
 export default function Audit() {
+  const auditEntries = useAudit();
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-start justify-between gap-4 flex-wrap">

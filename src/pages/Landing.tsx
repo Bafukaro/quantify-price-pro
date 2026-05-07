@@ -10,6 +10,7 @@ import {
   Layers,
   CheckCircle2,
   AlertTriangle,
+  Upload,
 } from "lucide-react";
 
 export default function Landing() {
@@ -68,6 +69,12 @@ export default function Landing() {
             de auditoria em cada alteração.
           </p>
           <div className="mt-9 flex flex-wrap gap-3 animate-fade-up" style={{ animationDelay: "0.2s" }}>
+            <Link
+              to="/app/modelo-3d"
+              className="inline-flex items-center gap-2 bg-warning text-foreground px-5 py-3 rounded-md font-medium hover:opacity-90 transition shadow-elegant"
+            >
+              <Upload className="size-4" /> Carregar planta / .pln
+            </Link>
             <Link
               to="/app"
               className="inline-flex items-center gap-2 bg-background text-foreground px-5 py-3 rounded-md font-medium hover:bg-white transition shadow-elegant"
