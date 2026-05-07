@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { priceRows } from "@/data/mock";
 import { Plus, Filter, AlertTriangle, TrendingUp, X, Camera, ChevronDown } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from "recharts";
@@ -80,8 +80,8 @@ export default function Prices() {
                 const data = genHistory(r.mediana, r.fA, r.fB, r.fC);
                 const change = Math.round(((data[5]["Forn. B"] - data[1]["Forn. B"]) / data[1]["Forn. B"]) * 100);
                 return (
-                  <>
-                  <tr key={r.material} onClick={() => setExpanded(isOpen ? null : r.material)} className="hover:bg-muted/30 cursor-pointer">
+                  <Fragment key={r.material}>
+                  <tr onClick={() => setExpanded(isOpen ? null : r.material)} className="hover:bg-muted/30 cursor-pointer">
                     <td className="px-2 py-3 text-center text-muted-foreground">
                       <ChevronDown className={`size-4 mx-auto transition ${isOpen ? "rotate-180" : ""}`} />
                     </td>
@@ -137,7 +137,7 @@ export default function Prices() {
                       </td>
                     </tr>
                   )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
