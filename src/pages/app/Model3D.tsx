@@ -4,7 +4,7 @@ import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from "@
 import BuildingModel, { PhaseKey, PHASE_COLORS } from "@/components/three/BuildingModel";
 import UploadedModel from "@/components/three/UploadedModel";
 import { phase3DInfo, fmtMT, type Phase3D } from "@/data/mock";
-import { Box, Eye, EyeOff, RotateCcw, FileBox, Layers, Upload } from "lucide-react";
+import { Box, Eye, EyeOff, RotateCcw, Layers, Upload } from "lucide-react";
 
 const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "acabamentos"];
 
