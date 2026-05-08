@@ -1,10 +1,10 @@
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from "@react-three/drei";
 import BuildingModel, { PhaseKey, PHASE_COLORS } from "@/components/three/BuildingModel";
-import UploadedModel from "@/components/three/UploadedModel";
+import UploadedModel, { type MeshInfo } from "@/components/three/UploadedModel";
 import { phase3DInfo, fmtMT, type Phase3D } from "@/data/mock";
-import { Box, Eye, EyeOff, RotateCcw, Layers, Upload } from "lucide-react";
+import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle } from "lucide-react";
 
 const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "acabamentos"];
 
@@ -12,6 +12,8 @@ export default function Model3D() {
   const [selected, setSelected] = useState<PhaseKey | null>(null);
   const [visible, setVisible] = useState<Set<Phase3D>>(new Set(ALL));
   const [uploaded, setUploaded] = useState<{ url: string; ext: "gltf" | "glb" | "obj"; name: string } | null>(null);
+  const [meshes, setMeshes] = useState<MeshInfo[]>([]);
+  const [overrides, setOverrides] = useState<Record<string, PhaseKey>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
   const togglePhase = (p: Phase3D) => {
@@ -50,12 +52,24 @@ export default function Model3D() {
     if (uploaded) URL.revokeObjectURL(uploaded.url);
     const url = URL.createObjectURL(f);
     setUploaded({ url, ext, name: f.name });
+    setMeshes([]);
+    setOverrides({});
     setSelected(null);
     setVisible(new Set(ALL));
   };
 
   const info = selected ? phase3DInfo[selected] : null;
   const total = info ? info.items.reduce((a, i) => a + i.qty * i.preco, 0) : null;
+
+  const ambiguous = useMemo(
+    () => meshes.filter((m) => m.confidence < 0.6).slice(0, 30),
+    [meshes]
+  );
+  const counts = useMemo(() => {
+    const c: Record<PhaseKey, number> = { fundacao: 0, pilares: 0, lajes: 0, alvenaria: 0, cobertura: 0, acabamentos: 0 };
+    meshes.forEach((m) => { c[overrides[m.id] ?? m.phase]++; });
+    return c;
+  }, [meshes, overrides]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -114,6 +128,8 @@ export default function Model3D() {
                     ext={uploaded.ext}
                     selected={selected}
                     visiblePhases={visible}
+                    overrides={overrides}
+                    onLoaded={setMeshes}
                     onSelect={(p) => focusPhase(p)}
                   />
                 ) : (
