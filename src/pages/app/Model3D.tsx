@@ -1,15 +1,18 @@
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from "@react-three/drei";
 import BuildingModel, { PhaseKey, PHASE_COLORS } from "@/components/three/BuildingModel";
+import UploadedModel from "@/components/three/UploadedModel";
 import { phase3DInfo, fmtMT, type Phase3D } from "@/data/mock";
-import { Box, Eye, EyeOff, RotateCcw, FileBox, Layers } from "lucide-react";
+import { Box, Eye, EyeOff, RotateCcw, Layers, Upload } from "lucide-react";
 
 const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "acabamentos"];
 
 export default function Model3D() {
   const [selected, setSelected] = useState<PhaseKey | null>(null);
   const [visible, setVisible] = useState<Set<Phase3D>>(new Set(ALL));
+  const [uploaded, setUploaded] = useState<{ url: string; ext: "gltf" | "glb" | "obj"; name: string } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const togglePhase = (p: Phase3D) => {
     setVisible((prev) => {
@@ -32,6 +35,25 @@ export default function Model3D() {
     setVisible(new Set(ALL));
   };
 
+  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const lower = f.name.toLowerCase();
+    let ext: "gltf" | "glb" | "obj" | null = null;
+    if (lower.endsWith(".glb")) ext = "glb";
+    else if (lower.endsWith(".gltf")) ext = "gltf";
+    else if (lower.endsWith(".obj")) ext = "obj";
+    if (!ext) {
+      alert("Formato não suportado. Use .gltf, .glb ou .obj");
+      return;
+    }
+    if (uploaded) URL.revokeObjectURL(uploaded.url);
+    const url = URL.createObjectURL(f);
+    setUploaded({ url, ext, name: f.name });
+    setSelected(null);
+    setVisible(new Set(ALL));
+  };
+
   const info = selected ? phase3DInfo[selected] : null;
   const total = info ? info.items.reduce((a, i) => a + i.qty * i.preco, 0) : null;
 
@@ -41,7 +63,7 @@ export default function Model3D() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-              Modelo 3D · Importado de Archicad (.pln)
+              Modelo 3D · {uploaded ? `Carregado: ${uploaded.name}` : "Demonstração procedural (carregue .gltf / .obj)"}
             </div>
             <h2 className="font-display text-3xl mt-1">remake_house_dr_mendes</h2>
             <div className="text-sm text-muted-foreground mt-1">
@@ -55,8 +77,18 @@ export default function Model3D() {
             >
               <RotateCcw className="size-4" /> Repor vista
             </button>
-            <button className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90">
-              <FileBox className="size-4" /> Re-importar .pln
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".gltf,.glb,.obj"
+              onChange={onFile}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90"
+            >
+              <Upload className="size-4" /> Importar modelo 3D (.gltf / .obj)
             </button>
           </div>
         </div>
@@ -76,11 +108,21 @@ export default function Model3D() {
                 shadow-mapSize={[1024, 1024]}
               />
               <Suspense fallback={null}>
-                <BuildingModel
-                  selected={selected}
-                  onSelect={(p) => focusPhase(p)}
-                  visiblePhases={visible}
-                />
+                {uploaded ? (
+                  <UploadedModel
+                    url={uploaded.url}
+                    ext={uploaded.ext}
+                    selected={selected}
+                    visiblePhases={visible}
+                    onSelect={(p) => focusPhase(p)}
+                  />
+                ) : (
+                  <BuildingModel
+                    selected={selected}
+                    onSelect={(p) => focusPhase(p)}
+                    visiblePhases={visible}
+                  />
+                )}
                 <ContactShadows position={[0, -0.79, 0]} opacity={0.35} blur={2.5} far={20} />
                 <Environment preset="city" />
               </Suspense>

@@ -1,17 +1,33 @@
-import { useParams } from "react-router-dom";
-import { useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { boqRows, projects, fmtMT } from "@/data/mock";
 import { Download, FileSpreadsheet, AlertTriangle, Calendar, Bell, TrendingUp, TrendingDown } from "lucide-react";
+import ProjectTasks from "@/components/dashboard/DailyTasks";
+import { useTasks } from "@/data/store";
 
 const phases = Object.keys(boqRows) as Array<keyof typeof boqRows>;
-type TabKey = "resumo" | "vista3d" | (typeof phases)[number];
+type TabKey = "resumo" | "vista3d" | "tarefas" | (typeof phases)[number];
+
+// Short label used in tasks (e.g. "Estrutura") derived from BoQ key ("Fase 1 — Estrutura")
+const shortPhase = (k: string) => k.split("—").pop()?.trim() ?? k;
 
 export default function Project() {
   const { id } = useParams();
+  const [params] = useSearchParams();
   const project = projects.find((p) => p.id === id) ?? projects[0];
   const [active, setActive] = useState<TabKey>("resumo");
+  useEffect(() => {
+    const t = params.get("tab");
+    if (t === "tarefas") setActive("tarefas");
+    else if (t === "vista3d") setActive("vista3d");
+    else if (t === "resumo") setActive("resumo");
+  }, [params]);
   const [exec, setExec] = useState("Obra dentro do prazo. Atenção ao desvio do aço A500 (+49%) — renegociar com Forn. B antes da próxima encomenda.");
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
+  const allTasks = useTasks();
+  const projectTasks = allTasks.filter((t) => t.projectId === project.id);
+  const pendingByPhase = (phaseKey: string) =>
+    projectTasks.filter((t) => !t.done && t.phase === shortPhase(phaseKey)).length;
 
   const isPhase = (k: TabKey): k is (typeof phases)[number] => phases.includes(k as any);
   const ivaPct = 0.17;
@@ -57,8 +73,20 @@ export default function Project() {
       <div className="flex flex-wrap gap-1 border-b border-border">
         <TabBtn label="Resumo" active={active === "resumo"} onClick={() => setActive("resumo")} />
         <TabBtn label="Vista 3D" active={active === "vista3d"} onClick={() => setActive("vista3d")} />
+        <TabBtn
+          label="Tarefas"
+          badge={projectTasks.filter((t) => !t.done).length || undefined}
+          active={active === "tarefas"}
+          onClick={() => setActive("tarefas")}
+        />
         {phases.map((ph) => (
-          <TabBtn key={ph} label={ph} active={active === ph} onClick={() => setActive(ph)} />
+          <TabBtn
+            key={ph}
+            label={ph}
+            badge={pendingByPhase(ph) || undefined}
+            active={active === ph}
+            onClick={() => setActive(ph)}
+          />
         ))}
       </div>
 
@@ -149,20 +177,29 @@ export default function Project() {
 
       {active === "vista3d" && <Vista3D selected={selectedFloor} onSelect={setSelectedFloor} />}
 
+      {active === "tarefas" && (
+        <ProjectTasks projectId={project.id} phases={phases.map(shortPhase)} />
+      )}
+
       {isPhase(active) && <BoQTable phase={active} ivaPct={ivaPct} contPct={contPct} />}
     </div>
   );
 }
 
-function TabBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function TabBtn({ label, active, onClick, badge }: { label: string; active: boolean; onClick: () => void; badge?: number }) {
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition ${
+      className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition inline-flex items-center gap-2 ${
         active ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
       }`}
     >
       {label}
+      {badge !== undefined && (
+        <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-warning/15 text-warning text-[10px] font-mono">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }

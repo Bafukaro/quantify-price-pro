@@ -10,16 +10,19 @@ export type DailyTask = {
   priority: Priority;
   done: boolean;
   createdAt: string;
+  projectId: string;
+  due?: string;
 };
 
 const initialTasks: DailyTask[] = [
-  { id: "t1", name: "Receber cotação ferro Ø10mm — Forn. B", assignee: "Eng. Tomás", phase: "F1 Estrutura", priority: "alta", done: false, createdAt: "2026-05-07" },
-  { id: "t2", name: "Verificar betonagem fundações bloco C", assignee: "Cláudia M.", phase: "F1 Estrutura", priority: "alta", done: false, createdAt: "2026-05-07" },
-  { id: "t3", name: "Actualizar preço cimento Portland na base", assignee: "Eng. Tomás", phase: "Base Preços", priority: "media", done: true, createdAt: "2026-05-07" },
-  { id: "t4", name: "Aprovar BoQ Fase 2 — Alvenaria", assignee: "Cláudia M.", phase: "F2 Alvenaria", priority: "alta", done: false, createdAt: "2026-05-07" },
-  { id: "t5", name: "Fotografar tabelão Fornecedor C", assignee: "Eng. Tomás", phase: "Base Preços", priority: "baixa", done: true, createdAt: "2026-05-06" },
-  { id: "t6", name: "Conferir ordem entrega cimento", assignee: "Cláudia M.", phase: "F0 Preliminares", priority: "media", done: true, createdAt: "2026-05-05" },
-  { id: "t7", name: "Vistoria armaduras pilares P3-P5", assignee: "Eng. Tomás", phase: "F1 Estrutura", priority: "alta", done: true, createdAt: "2026-05-05" },
+  { id: "t1", projectId: "p-001", due: "2026-05-09", name: "Receber cotação ferro Ø10mm — Forn. B", assignee: "Eng. Tomás", phase: "Estrutura", priority: "alta", done: false, createdAt: "2026-05-07" },
+  { id: "t2", projectId: "p-001", due: "2026-05-08", name: "Verificar betonagem fundações bloco C", assignee: "Cláudia M.", phase: "Estrutura", priority: "alta", done: false, createdAt: "2026-05-07" },
+  { id: "t3", projectId: "p-001", due: "2026-05-10", name: "Actualizar preço cimento Portland na base", assignee: "Eng. Tomás", phase: "Preliminares", priority: "media", done: true, createdAt: "2026-05-07" },
+  { id: "t4", projectId: "p-001", due: "2026-05-12", name: "Aprovar BoQ Fase 2 — Alvenaria", assignee: "Cláudia M.", phase: "Alvenaria", priority: "alta", done: false, createdAt: "2026-05-07" },
+  { id: "t5", projectId: "p-002", due: "2026-05-09", name: "Fotografar tabelão Fornecedor C", assignee: "Eng. Tomás", phase: "Instalações", priority: "baixa", done: false, createdAt: "2026-05-06" },
+  { id: "t6", projectId: "p-002", due: "2026-05-11", name: "Conferir ordem entrega cabos eléctricos", assignee: "Cláudia M.", phase: "Instalações", priority: "media", done: false, createdAt: "2026-05-05" },
+  { id: "t7", projectId: "p-001", due: "2026-05-08", name: "Vistoria armaduras pilares P3-P5", assignee: "Eng. Tomás", phase: "Estrutura", priority: "alta", done: false, createdAt: "2026-05-05" },
+  { id: "t8", projectId: "p-002", due: "2026-05-15", name: "Recepção de chapas para cobertura", assignee: "Eng. Tomás", phase: "Cobertura", priority: "media", done: false, createdAt: "2026-05-06" },
 ];
 
 let tasks: DailyTask[] = [...initialTasks];

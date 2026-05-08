@@ -1,11 +1,17 @@
 import { Link } from "react-router-dom";
 import { projects, fmtMT } from "@/data/mock";
-import { AlertTriangle, ArrowUpRight, Plus, TrendingUp, Building2, Wallet } from "lucide-react";
-import DailyTasks from "@/components/dashboard/DailyTasks";
+import { AlertTriangle, ArrowUpRight, Plus, TrendingUp, Building2, Wallet, ListTodo } from "lucide-react";
+import { useTasks } from "@/data/store";
 
 export default function Dashboard() {
   const totalGerido = projects.reduce((a, p) => a + p.totalMT, 0);
   const totalAlertas = projects.reduce((a, p) => a + p.alerts, 0);
+  const tasks = useTasks();
+  const pendingByProject = projects
+    .map((p) => ({ p, n: tasks.filter((t) => t.projectId === p.id && !t.done).length }))
+    .sort((a, b) => b.n - a.n);
+  const totalPending = pendingByProject.reduce((a, x) => a + x.n, 0);
+  const topProject = pendingByProject[0];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -101,7 +107,48 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
-        <DailyTasks />
+        <aside className="space-y-4">
+          <Link
+            to={topProject && topProject.n > 0 ? `/app/projecto/${topProject.p.id}?tab=tarefas` : "#"}
+            className="block p-5 rounded-xl bg-surface-elevated border border-border shadow-soft hover:shadow-elegant transition group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Tarefas pendentes</div>
+              <ListTodo className="size-4 text-accent" />
+            </div>
+            <div className="font-display text-4xl mt-3">{totalPending}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              em {pendingByProject.filter((x) => x.n > 0).length} projecto(s)
+            </div>
+            {topProject && topProject.n > 0 && (
+              <div className="mt-4 pt-4 border-t border-border flex items-center justify-between text-sm">
+                <span className="text-muted-foreground truncate">
+                  +{topProject.n} em <span className="text-foreground font-medium">{topProject.p.name}</span>
+                </span>
+                <ArrowUpRight className="size-4 text-muted-foreground group-hover:text-accent transition shrink-0" />
+              </div>
+            )}
+          </Link>
+
+          <div className="p-5 rounded-xl bg-surface-elevated border border-border shadow-soft">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Por projecto</div>
+            <ul className="space-y-2">
+              {pendingByProject.map(({ p, n }) => (
+                <li key={p.id}>
+                  <Link
+                    to={`/app/projecto/${p.id}?tab=tarefas`}
+                    className="flex items-center justify-between gap-2 px-3 py-2 rounded-md hover:bg-muted/50 text-sm"
+                  >
+                    <span className="truncate">{p.name}</span>
+                    <span className={`font-mono text-xs px-2 py-0.5 rounded-full ${n > 0 ? "bg-warning/15 text-warning" : "bg-muted text-muted-foreground"}`}>
+                      {n}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
       </div>
     </div>
   );
