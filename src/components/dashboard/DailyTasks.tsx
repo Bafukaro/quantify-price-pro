@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useTasks, toggleTask, addTask, type Priority } from "@/data/store";
-import { Plus, CheckCircle2, Circle, X } from "lucide-react";
+import { Plus, CheckCircle2, Circle, X, Calendar, User } from "lucide-react";
 
 const priorityColor: Record<Priority, string> = {
   alta: "bg-destructive",
@@ -8,126 +8,152 @@ const priorityColor: Record<Priority, string> = {
   baixa: "bg-success",
 };
 const priorityLabel: Record<Priority, string> = { alta: "Alta", media: "Média", baixa: "Baixa" };
-const PHASES = ["F0 Preliminares", "F1 Estrutura", "F2 Alvenaria", "F3 Instalações", "F4 Acabamentos", "F5 Exteriores", "Base Preços"];
 
-export default function DailyTasks() {
-  const tasks = useTasks();
+export default function ProjectTasks({
+  projectId,
+  phases,
+  initialPhase,
+}: {
+  projectId: string;
+  phases: string[];
+  initialPhase?: string;
+}) {
+  const all = useTasks();
+  const tasks = useMemo(() => all.filter((t) => t.projectId === projectId), [all, projectId]);
+
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", assignee: "", phase: "F1 Estrutura", priority: "media" as Priority });
+  const [form, setForm] = useState({
+    name: "",
+    assignee: "",
+    phase: initialPhase ?? phases[0] ?? "Estrutura",
+    priority: "media" as Priority,
+    due: "",
+  });
 
-  const today = tasks; // simulated "today"
-  const doneToday = today.filter((t) => t.done).length;
-  const pctToday = today.length ? Math.round((doneToday / today.length) * 100) : 0;
-  const weekDone = tasks.filter((t) => t.done).length;
-
-  // group by phase
-  const grouped = today.reduce<Record<string, typeof tasks>>((acc, t) => {
-    (acc[t.phase] ||= []).push(t);
+  const grouped = phases.reduce<Record<string, typeof tasks>>((acc, ph) => {
+    acc[ph] = tasks.filter((t) => t.phase === ph);
     return acc;
   }, {});
+  const orphans = tasks.filter((t) => !phases.includes(t.phase));
 
   const submit = () => {
     if (!form.name.trim() || !form.assignee.trim()) return;
-    addTask(form);
-    setForm({ name: "", assignee: "", phase: "F1 Estrutura", priority: "media" });
+    addTask({ ...form, projectId });
+    setForm({ name: "", assignee: "", phase: form.phase, priority: "media", due: "" });
     setOpen(false);
   };
 
+  const pending = tasks.filter((t) => !t.done).length;
+
   return (
-    <aside className="rounded-xl bg-surface-elevated border border-border shadow-soft p-5 space-y-4 sticky top-24">
-      <div>
-        <div className="flex items-center justify-between">
-          <h3 className="font-display text-lg">Tarefas de hoje</h3>
-          <span className="text-xs text-muted-foreground font-mono">{doneToday}/{today.length}</span>
-        </div>
-        <div className="mt-2 flex items-center gap-2">
-          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-            <div className="h-full bg-accent transition-all" style={{ width: `${pctToday}%` }} />
+    <div className="space-y-5">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h3 className="font-display text-2xl">Tarefas do projecto</h3>
+          <div className="text-sm text-muted-foreground mt-1">
+            {pending} pendente{pending !== 1 ? "s" : ""} · {tasks.length} no total
           </div>
-          <span className="text-xs font-mono text-accent">{pctToday}%</span>
         </div>
-        <div className="text-[11px] text-muted-foreground mt-1">% concluído hoje</div>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90"
+        >
+          {open ? <X className="size-4" /> : <Plus className="size-4" />}
+          {open ? "Cancelar" : "Nova tarefa"}
+        </button>
       </div>
 
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full inline-flex items-center justify-center gap-2 border border-dashed border-border px-3 py-2 rounded-md text-xs hover:bg-muted text-muted-foreground"
-      >
-        {open ? <X className="size-3.5" /> : <Plus className="size-3.5" />}
-        {open ? "Cancelar" : "Nova tarefa"}
-      </button>
-
       {open && (
-        <div className="space-y-2 p-3 rounded-md border border-border bg-muted/30 animate-fade-in">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2 p-4 rounded-lg border border-border bg-muted/30 animate-fade-in">
           <input
             placeholder="Nome da tarefa"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-full px-2 py-1.5 rounded border border-border bg-background text-sm"
+            className="lg:col-span-2 px-3 py-2 rounded border border-border bg-background text-sm"
           />
           <input
             placeholder="Responsável"
             value={form.assignee}
             onChange={(e) => setForm({ ...form, assignee: e.target.value })}
-            className="w-full px-2 py-1.5 rounded border border-border bg-background text-sm"
+            className="px-3 py-2 rounded border border-border bg-background text-sm"
           />
-          <div className="flex gap-2">
-            <select
-              value={form.phase}
-              onChange={(e) => setForm({ ...form, phase: e.target.value })}
-              className="flex-1 px-2 py-1.5 rounded border border-border bg-background text-xs"
-            >
-              {PHASES.map((p) => <option key={p}>{p}</option>)}
-            </select>
-            <select
-              value={form.priority}
-              onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
-              className="px-2 py-1.5 rounded border border-border bg-background text-xs"
-            >
-              <option value="alta">Alta</option>
-              <option value="media">Média</option>
-              <option value="baixa">Baixa</option>
-            </select>
-          </div>
-          <button onClick={submit} className="w-full bg-primary text-primary-foreground px-3 py-1.5 rounded text-xs font-medium hover:opacity-90">
+          <select
+            value={form.phase}
+            onChange={(e) => setForm({ ...form, phase: e.target.value })}
+            className="px-3 py-2 rounded border border-border bg-background text-sm"
+          >
+            {phases.map((p) => <option key={p}>{p}</option>)}
+          </select>
+          <select
+            value={form.priority}
+            onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
+            className="px-3 py-2 rounded border border-border bg-background text-sm"
+          >
+            <option value="alta">Alta</option>
+            <option value="media">Média</option>
+            <option value="baixa">Baixa</option>
+          </select>
+          <input
+            type="date"
+            value={form.due}
+            onChange={(e) => setForm({ ...form, due: e.target.value })}
+            className="px-3 py-2 rounded border border-border bg-background text-sm"
+          />
+          <button
+            onClick={submit}
+            className="lg:col-span-5 bg-primary text-primary-foreground px-3 py-2 rounded text-sm font-medium hover:opacity-90"
+          >
             Guardar tarefa
           </button>
         </div>
       )}
 
-      <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
-        {Object.entries(grouped).map(([phase, list]) => (
-          <div key={phase}>
-            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-medium mb-1.5">
-              {phase}
+      <div className="space-y-5">
+        {phases.map((phase) => {
+          const list = grouped[phase];
+          if (!list.length) return null;
+          const pendingPh = list.filter((t) => !t.done).length;
+          return (
+            <div key={phase} className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 bg-muted/40 border-b border-border">
+                <div className="text-sm font-medium">{phase}</div>
+                <span className="text-xs font-mono text-muted-foreground">
+                  {pendingPh} pendente{pendingPh !== 1 ? "s" : ""} · {list.length} total
+                </span>
+              </div>
+              <ul className="divide-y divide-border">
+                {list.map((t) => (
+                  <li key={t.id} className={`flex items-start gap-3 px-5 py-3 hover:bg-muted/30 ${t.done ? "opacity-60" : ""}`}>
+                    <button onClick={() => toggleTask(t.id)} className="mt-0.5 shrink-0 text-accent" aria-label="toggle">
+                      {t.done ? <CheckCircle2 className="size-5" /> : <Circle className="size-5 text-muted-foreground" />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm ${t.done ? "line-through text-muted-foreground" : ""}`}>{t.name}</div>
+                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground mt-1">
+                        <span className="inline-flex items-center gap-1"><User className="size-3" /> {t.assignee}</span>
+                        {t.due && <span className="inline-flex items-center gap-1"><Calendar className="size-3" /> {t.due}</span>}
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className={`size-2 rounded-full ${priorityColor[t.priority]}`} /> {priorityLabel[t.priority]}
+                        </span>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="space-y-1.5">
-              {list.map((t) => (
-                <li key={t.id} className={`flex items-start gap-2 p-2 rounded-md border border-border hover:bg-muted/40 ${t.done ? "opacity-60" : ""}`}>
-                  <button onClick={() => toggleTask(t.id)} className="mt-0.5 shrink-0 text-accent" aria-label="toggle">
-                    {t.done ? <CheckCircle2 className="size-4" /> : <Circle className="size-4 text-muted-foreground" />}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-xs ${t.done ? "line-through text-muted-foreground" : ""}`}>{t.name}</div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">{t.assignee} · {priorityLabel[t.priority]}</div>
-                  </div>
-                  <span className={`mt-1 size-2 rounded-full shrink-0 ${priorityColor[t.priority]}`} title={priorityLabel[t.priority]} />
-                </li>
-              ))}
-            </ul>
+          );
+        })}
+        {orphans.length > 0 && (
+          <div className="rounded-xl bg-surface-elevated border border-dashed border-border p-4 text-xs text-muted-foreground">
+            {orphans.length} tarefa(s) sem fase associada.
           </div>
-        ))}
+        )}
+        {tasks.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            Sem tarefas para este projecto. Crie uma nova acima.
+          </div>
+        )}
       </div>
-
-      <div className="pt-3 border-t border-border">
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>Esta semana</span>
-          <span className="font-mono">{weekDone} de {tasks.length}</span>
-        </div>
-        <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden">
-          <div className="h-full bg-gradient-accent" style={{ width: `${(weekDone / tasks.length) * 100}%` }} />
-        </div>
-      </div>
-    </aside>
+    </div>
   );
 }
