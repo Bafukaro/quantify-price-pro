@@ -220,6 +220,55 @@ export default function Model3D() {
               </div>
             </div>
           )}
+
+          {uploaded && meshes.length > 0 && (
+            <div className="rounded-xl bg-surface-elevated border border-border shadow-soft p-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                Classificação automática
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+                {ALL.map((p) => (
+                  <div key={p} className="flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm" style={{ background: PHASE_COLORS[p] }} />
+                    <span className="text-muted-foreground">{phase3DInfo[p].label}:</span>
+                    <span className="font-mono">{counts[p]}</span>
+                  </div>
+                ))}
+              </div>
+              {ambiguous.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="text-[11px] flex items-center gap-1.5 text-warning">
+                    <AlertTriangle className="size-3" />
+                    {ambiguous.length} elementos ambíguos — ajuste manual:
+                  </div>
+                  <div className="mt-2 max-h-56 overflow-auto space-y-1.5">
+                    {ambiguous.map((m) => {
+                      const cur = overrides[m.id] ?? m.phase;
+                      return (
+                        <div key={m.id} className="flex items-center gap-2 text-xs">
+                          <div className="flex-1 truncate" title={`${m.name} · ${m.reason} · conf ${(m.confidence * 100).toFixed(0)}%`}>
+                            <div className="truncate font-mono">{m.name}</div>
+                            <div className="text-[10px] text-muted-foreground">{m.reason} · {(m.confidence * 100).toFixed(0)}%</div>
+                          </div>
+                          <select
+                            value={cur}
+                            onChange={(e) =>
+                              setOverrides((o) => ({ ...o, [m.id]: e.target.value as PhaseKey }))
+                            }
+                            className="text-xs border border-border rounded px-1.5 py-1 bg-background"
+                          >
+                            {ALL.map((p) => (
+                              <option key={p} value={p}>{phase3DInfo[p].label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </aside>
       </div>
 
