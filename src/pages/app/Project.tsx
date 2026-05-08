@@ -1,5 +1,5 @@
-import { useParams } from "react-router-dom";
-import { useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { boqRows, projects, fmtMT } from "@/data/mock";
 import { Download, FileSpreadsheet, AlertTriangle, Calendar, Bell, TrendingUp, TrendingDown } from "lucide-react";
 import ProjectTasks from "@/components/dashboard/DailyTasks";
@@ -13,8 +13,15 @@ const shortPhase = (k: string) => k.split("—").pop()?.trim() ?? k;
 
 export default function Project() {
   const { id } = useParams();
+  const [params] = useSearchParams();
   const project = projects.find((p) => p.id === id) ?? projects[0];
   const [active, setActive] = useState<TabKey>("resumo");
+  useEffect(() => {
+    const t = params.get("tab");
+    if (t === "tarefas") setActive("tarefas");
+    else if (t === "vista3d") setActive("vista3d");
+    else if (t === "resumo") setActive("resumo");
+  }, [params]);
   const [exec, setExec] = useState("Obra dentro do prazo. Atenção ao desvio do aço A500 (+49%) — renegociar com Forn. B antes da próxima encomenda.");
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const allTasks = useTasks();
