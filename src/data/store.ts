@@ -1,6 +1,28 @@
 import { useSyncExternalStore } from "react";
 import { auditEntries } from "./mock";
 
+const TASKS_KEY = "sqi.tasks.v1";
+const QUOTES_KEY = "sqi.quotes.v1";
+const AUDIT_KEY = "sqi.audit.v1";
+
+function loadLS<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function saveLS<T>(key: string, value: T) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* quota or serialization error — ignore */
+  }
+}
+
 export type Priority = "alta" | "media" | "baixa";
 export type DailyTask = {
   id: string;
@@ -25,10 +47,18 @@ const initialTasks: DailyTask[] = [
   { id: "t8", projectId: "p-002", due: "2026-05-15", name: "Recepção de chapas para cobertura", assignee: "Eng. Tomás", phase: "Cobertura", priority: "media", done: false, createdAt: "2026-05-06" },
 ];
 
-let tasks: DailyTask[] = [...initialTasks];
-let audit = [...auditEntries];
+let tasks: DailyTask[] = loadLS<DailyTask[]>(TASKS_KEY, initialTasks);
+let audit = loadLS<typeof auditEntries>(AUDIT_KEY, auditEntries);
 const listeners = new Set<() => void>();
-const emit = () => listeners.forEach((l) => l());
+const persist = () => {
+  saveLS(TASKS_KEY, tasks);
+  saveLS(AUDIT_KEY, audit);
+  saveLS(QUOTES_KEY, quotes);
+};
+const emit = () => {
+  persist();
+  listeners.forEach((l) => l());
+};
 const subscribe = (l: () => void) => {
   listeners.add(l);
   return () => listeners.delete(l);
@@ -67,7 +97,7 @@ export function addTask(t: Omit<DailyTask, "id" | "done" | "createdAt">) {
 
 // Quick price quotation additions
 export type QuickQuote = { material: string; supplier: string; price: number; date: string; hasPhoto: boolean };
-let quotes: QuickQuote[] = [];
+let quotes: QuickQuote[] = loadLS<QuickQuote[]>(QUOTES_KEY, []);
 export function useQuotes() {
   return useSyncExternalStore(subscribe, () => quotes, () => quotes);
 }
@@ -77,5 +107,12 @@ export function addQuote(q: QuickQuote) {
     { dt: nowStamp(), user: "Eng. Tomás R.", item: `Cotação rápida — ${q.material}`, from: "—", to: `${q.price} MT (${q.supplier})`, delta: 0, just: q.hasPhoto ? "Foto do tabelão anexa" : "Entrada manual mobile" },
     ...audit,
   ];
+  emit();
+}
+
+export function resetStore() {
+  tasks = [...initialTasks];
+  audit = [...auditEntries];
+  quotes = [];
   emit();
 }

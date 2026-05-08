@@ -1,10 +1,10 @@
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from "@react-three/drei";
 import BuildingModel, { PhaseKey, PHASE_COLORS } from "@/components/three/BuildingModel";
-import UploadedModel from "@/components/three/UploadedModel";
+import UploadedModel, { type MeshInfo } from "@/components/three/UploadedModel";
 import { phase3DInfo, fmtMT, type Phase3D } from "@/data/mock";
-import { Box, Eye, EyeOff, RotateCcw, Layers, Upload } from "lucide-react";
+import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle } from "lucide-react";
 
 const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "acabamentos"];
 
@@ -12,6 +12,8 @@ export default function Model3D() {
   const [selected, setSelected] = useState<PhaseKey | null>(null);
   const [visible, setVisible] = useState<Set<Phase3D>>(new Set(ALL));
   const [uploaded, setUploaded] = useState<{ url: string; ext: "gltf" | "glb" | "obj"; name: string } | null>(null);
+  const [meshes, setMeshes] = useState<MeshInfo[]>([]);
+  const [overrides, setOverrides] = useState<Record<string, PhaseKey>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
   const togglePhase = (p: Phase3D) => {
@@ -50,12 +52,24 @@ export default function Model3D() {
     if (uploaded) URL.revokeObjectURL(uploaded.url);
     const url = URL.createObjectURL(f);
     setUploaded({ url, ext, name: f.name });
+    setMeshes([]);
+    setOverrides({});
     setSelected(null);
     setVisible(new Set(ALL));
   };
 
   const info = selected ? phase3DInfo[selected] : null;
   const total = info ? info.items.reduce((a, i) => a + i.qty * i.preco, 0) : null;
+
+  const ambiguous = useMemo(
+    () => meshes.filter((m) => m.confidence < 0.6).slice(0, 30),
+    [meshes]
+  );
+  const counts = useMemo(() => {
+    const c: Record<PhaseKey, number> = { fundacao: 0, pilares: 0, lajes: 0, alvenaria: 0, cobertura: 0, acabamentos: 0 };
+    meshes.forEach((m) => { c[overrides[m.id] ?? m.phase]++; });
+    return c;
+  }, [meshes, overrides]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -114,6 +128,8 @@ export default function Model3D() {
                     ext={uploaded.ext}
                     selected={selected}
                     visiblePhases={visible}
+                    overrides={overrides}
+                    onLoaded={setMeshes}
                     onSelect={(p) => focusPhase(p)}
                   />
                 ) : (
@@ -202,6 +218,55 @@ export default function Model3D() {
                 <div className="text-[10px] uppercase tracking-wider text-white/60">Custo desta fase</div>
                 <div className="font-display text-2xl text-warning">{fmtMT(total!)}</div>
               </div>
+            </div>
+          )}
+
+          {uploaded && meshes.length > 0 && (
+            <div className="rounded-xl bg-surface-elevated border border-border shadow-soft p-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                Classificação automática
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+                {ALL.map((p) => (
+                  <div key={p} className="flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-sm" style={{ background: PHASE_COLORS[p] }} />
+                    <span className="text-muted-foreground">{phase3DInfo[p].label}:</span>
+                    <span className="font-mono">{counts[p]}</span>
+                  </div>
+                ))}
+              </div>
+              {ambiguous.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="text-[11px] flex items-center gap-1.5 text-warning">
+                    <AlertTriangle className="size-3" />
+                    {ambiguous.length} elementos ambíguos — ajuste manual:
+                  </div>
+                  <div className="mt-2 max-h-56 overflow-auto space-y-1.5">
+                    {ambiguous.map((m) => {
+                      const cur = overrides[m.id] ?? m.phase;
+                      return (
+                        <div key={m.id} className="flex items-center gap-2 text-xs">
+                          <div className="flex-1 truncate" title={`${m.name} · ${m.reason} · conf ${(m.confidence * 100).toFixed(0)}%`}>
+                            <div className="truncate font-mono">{m.name}</div>
+                            <div className="text-[10px] text-muted-foreground">{m.reason} · {(m.confidence * 100).toFixed(0)}%</div>
+                          </div>
+                          <select
+                            value={cur}
+                            onChange={(e) =>
+                              setOverrides((o) => ({ ...o, [m.id]: e.target.value as PhaseKey }))
+                            }
+                            className="text-xs border border-border rounded px-1.5 py-1 bg-background"
+                          >
+                            {ALL.map((p) => (
+                              <option key={p} value={p}>{phase3DInfo[p].label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </aside>
