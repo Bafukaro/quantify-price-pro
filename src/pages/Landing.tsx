@@ -359,6 +359,189 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* MARKET PRICE ANALYSIS */}
+      <section id="market" className="py-24 border-b border-border">
+        <div className="max-w-7xl mx-auto px-6">
+          <SectionHeader
+            kicker="03 · Market price analysis"
+            title="Quantified supplier intelligence."
+            sub="Median pricing, supplier dispersion and 6-month trend analysis across the formal and informal markets."
+          />
+
+          <div className="mt-12 grid lg:grid-cols-12 gap-6">
+            {/* Trend chart */}
+            <div className="lg:col-span-7 p-6 rounded-xl border border-border bg-surface-elevated shadow-soft">
+              <div className="flex items-start justify-between mb-4 flex-wrap gap-2">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground font-mono">
+                    Cement 50kg · 6-month trend
+                  </div>
+                  <div className="font-display text-xl mt-1">Supplier dispersion vs market median</div>
+                </div>
+                <div className="text-right">
+                  <div className="font-mono text-2xl">605 <span className="text-xs text-muted-foreground">MT</span></div>
+                  <div className="text-[11px] text-success font-mono">median ▲ +4.2% MoM</div>
+                </div>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={MARKET_TREND} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                    <XAxis dataKey="month" stroke="hsl(220 10% 50%)" fontSize={11} />
+                    <YAxis stroke="hsl(220 10% 50%)" fontSize={11} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--surface-elevated))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <ReferenceLine y={605} stroke="hsl(var(--accent))" strokeDasharray="4 4" label={{ value: "Median", fontSize: 10, fill: "hsl(var(--accent))" }} />
+                    <Line type="monotone" dataKey="Forn. A" stroke="hsl(211 70% 50%)" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="Forn. B" stroke="hsl(220 10% 50%)" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="Forn. C" stroke="hsl(0 70% 55%)" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Deviation by item */}
+            <div className="lg:col-span-5 p-6 rounded-xl border border-border bg-surface-elevated shadow-soft">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground font-mono">
+                Deviation by material
+              </div>
+              <div className="font-display text-xl mt-1 mb-4">% above median</div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={MARKET_DEVIATION} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" horizontal={false} />
+                    <XAxis type="number" stroke="hsl(220 10% 50%)" fontSize={11} unit="%" />
+                    <YAxis type="category" dataKey="name" stroke="hsl(220 10% 50%)" fontSize={11} width={90} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--surface-elevated))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }} formatter={(v: number) => `${v}%`} />
+                    <Bar dataKey="dev" radius={[0, 4, 4, 0]}>
+                      {MARKET_DEVIATION.map((d, i) => (
+                        <rect key={i} fill={d.dev > 20 ? "hsl(var(--destructive))" : d.dev > 10 ? "hsl(var(--warning))" : "hsl(var(--success))"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Comparison table */}
+            <div className="lg:col-span-12 p-6 rounded-xl border border-border bg-surface-elevated shadow-soft overflow-x-auto">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div className="font-display text-lg">Supplier comparison · per item</div>
+                <div className="text-[11px] font-mono uppercase tracking-[0.14em] text-muted-foreground">
+                  3 suppliers · MT
+                </div>
+              </div>
+              <table className="w-full text-sm min-w-[640px]">
+                <thead className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                  <tr>
+                    <th className="text-left py-2 font-medium">Material</th>
+                    <th className="text-right font-medium">Un</th>
+                    <th className="text-right font-medium">Forn. A</th>
+                    <th className="text-right font-medium">Forn. B</th>
+                    <th className="text-right font-medium">Forn. C</th>
+                    <th className="text-right font-medium">Median</th>
+                    <th className="text-right font-medium">Δ%</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  {MARKET_TABLE.map((r) => (
+                    <tr key={r.name} className="border-b border-border/60 last:border-0">
+                      <td className="py-2.5 font-sans">{r.name}</td>
+                      <td className="text-right text-muted-foreground">{r.un}</td>
+                      <td className="text-right">{r.a}</td>
+                      <td className="text-right">{r.b}</td>
+                      <td className="text-right">{r.c}</td>
+                      <td className="text-right">{r.med}</td>
+                      <td className={`text-right font-medium ${r.dev > 20 ? "text-destructive" : r.dev > 10 ? "text-warning-foreground" : "text-success"}`}>
+                        +{r.dev}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ENGINEERING ANALYTICS DASHBOARD */}
+      <section id="analytics" className="py-24 bg-surface-sunken border-b border-border">
+        <div className="max-w-7xl mx-auto px-6">
+          <SectionHeader
+            kicker="04 · Engineering analytics"
+            title="Quantified insights for project managers."
+            sub="Real-time cost performance, risk concentration and quantity progression — instrumented for engineering decisions."
+          />
+
+          <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <KpiCard label="Cost Performance Index" value="0.94" delta="-6%" tone="warning" />
+            <KpiCard label="Quantities take-off" value="184" delta="100%" tone="success" sub="BoQ items" />
+            <KpiCard label="High-risk lines" value="5" delta="2.7%" tone="destructive" sub="of total BoQ" />
+            <KpiCard label="Audit events" value="38" delta="+12 wk" tone="default" />
+          </div>
+
+          <div className="mt-6 grid lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-7 p-6 rounded-xl border border-border bg-surface-elevated shadow-soft">
+              <div className="flex items-start justify-between mb-4 flex-wrap gap-2">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground font-mono">
+                    Planned vs actual cost
+                  </div>
+                  <div className="font-display text-xl mt-1">Cumulative project spend (M MT)</div>
+                </div>
+                <div className="text-right">
+                  <div className="font-mono text-2xl">61.5M</div>
+                  <div className="text-[11px] text-destructive font-mono">+8.4% over plan</div>
+                </div>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={ANALYTICS_PROGRESS} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity={0.45} />
+                        <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                    <XAxis dataKey="m" stroke="hsl(220 10% 50%)" fontSize={11} />
+                    <YAxis stroke="hsl(220 10% 50%)" fontSize={11} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--surface-elevated))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Area type="monotone" dataKey="Planned" stroke="hsl(220 10% 50%)" strokeDasharray="4 4" fill="transparent" />
+                    <Area type="monotone" dataKey="Actual" stroke="hsl(var(--accent))" fill="url(#actGrad)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="lg:col-span-5 p-6 rounded-xl border border-border bg-surface-elevated shadow-soft">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground font-mono">
+                Risk concentration by phase
+              </div>
+              <div className="font-display text-xl mt-1 mb-4">High-risk MT exposure</div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={ANALYTICS_RISK} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                    <XAxis dataKey="phase" stroke="hsl(220 10% 50%)" fontSize={11} />
+                    <YAxis stroke="hsl(220 10% 50%)" fontSize={11} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--surface-elevated))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }} />
+                    <Bar dataKey="exposure" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="lg:col-span-12 grid sm:grid-cols-3 gap-4">
+              <InsightCard icon={LineChartIcon} title="Steel A500 trend" body="Price up +49% YoY. Switching to Forn. A saves 2.1M MT over remaining work." />
+              <InsightCard icon={BarChart3} title="Concrete C25/30 stable" body="Within ±3% of median across 14 weeks. No procurement action required." />
+              <InsightCard icon={PieChart} title="Phase exposure" body="Structure phase concentrates 62% of high-risk lines. Prioritize approval workflow." />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* WORKFLOW DIAGRAM */}
       <section id="workflow" className="py-24 border-b border-border">
         <div className="max-w-7xl mx-auto px-6">
