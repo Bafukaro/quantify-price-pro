@@ -876,3 +876,105 @@ function ArchLayer({
     </div>
   );
 }
+
+/* ---------- analytics data + cards ---------- */
+
+const MARKET_TREND = [
+  { month: "Dez 25", "Forn. A": 540, "Forn. B": 565, "Forn. C": 640 },
+  { month: "Jan 26", "Forn. A": 555, "Forn. B": 575, "Forn. C": 660 },
+  { month: "Fev 26", "Forn. A": 562, "Forn. B": 590, "Forn. C": 680 },
+  { month: "Mar 26", "Forn. A": 570, "Forn. B": 598, "Forn. C": 695 },
+  { month: "Abr 26", "Forn. A": 578, "Forn. B": 602, "Forn. C": 710 },
+  { month: "Mai 26", "Forn. A": 580, "Forn. B": 605, "Forn. C": 720 },
+];
+
+const MARKET_DEVIATION = [
+  { name: "Cabo XV 2.5", dev: 28 },
+  { name: "Brita Nº 1", dev: 24 },
+  { name: "Disjuntor 25A", dev: 23 },
+  { name: "Tubo PVC 50", dev: 23 },
+  { name: "Cimento 50kg", dev: 19 },
+  { name: "Tijolo furado", dev: 17 },
+  { name: "Aço Ø10mm", dev: 16 },
+  { name: "Tinta 15L", dev: 5 },
+];
+
+const MARKET_TABLE = [
+  { name: "Cimento Portland 50kg", un: "saco", a: 580, b: 605, c: 720, med: 605, dev: 19 },
+  { name: "Aço A500 NR Ø10mm", un: "kg", a: 138, b: 142, c: 165, med: 142, dev: 16 },
+  { name: "Tubo PVC PN10 Ø50mm", un: "m", a: 185, b: 195, c: 240, med: 195, dev: 23 },
+  { name: "Cabo XV 3x2.5mm²", un: "m", a: 158, b: 168, c: 215, med: 168, dev: 28 },
+  { name: "Tijolo furado 11x20x30", un: "un", a: 22, b: 24, c: 28, med: 24, dev: 17 },
+  { name: "Brita Nº 1 (granito)", un: "m³", a: 1850, b: 1920, c: 2380, med: 1920, dev: 24 },
+];
+
+const ANALYTICS_PROGRESS = [
+  { m: "S1", Planned: 6, Actual: 6.2 },
+  { m: "S4", Planned: 14, Actual: 15.1 },
+  { m: "S8", Planned: 24, Actual: 26.4 },
+  { m: "S12", Planned: 36, Actual: 40.1 },
+  { m: "S16", Planned: 47, Actual: 51.8 },
+  { m: "S20", Planned: 56, Actual: 61.5 },
+];
+
+const ANALYTICS_RISK = [
+  { phase: "F0", exposure: 0.6 },
+  { phase: "F1", exposure: 6.2 },
+  { phase: "F2", exposure: 2.1 },
+  { phase: "F3", exposure: 3.4 },
+  { phase: "F4", exposure: 1.2 },
+  { phase: "F5", exposure: 0.4 },
+];
+
+function KpiCard({
+  label,
+  value,
+  delta,
+  tone,
+  sub,
+}: {
+  label: string;
+  value: string;
+  delta: string;
+  tone: "default" | "success" | "warning" | "destructive";
+  sub?: string;
+}) {
+  const cls =
+    tone === "success"
+      ? "text-success"
+      : tone === "warning"
+      ? "text-warning"
+      : tone === "destructive"
+      ? "text-destructive"
+      : "text-muted-foreground";
+  return (
+    <div className="p-5 rounded-xl border border-border bg-surface-elevated shadow-soft">
+      <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground font-mono">
+        {label}
+      </div>
+      <div className="font-display text-3xl mt-2">{value}</div>
+      <div className={`text-xs font-mono mt-1 ${cls}`}>
+        {delta}
+        {sub && <span className="text-muted-foreground ml-1">· {sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+function InsightCard({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: any;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="p-5 rounded-xl border border-border bg-surface-elevated shadow-soft">
+      <Icon className="size-5 text-accent mb-3" />
+      <div className="font-display text-base">{title}</div>
+      <div className="text-sm text-muted-foreground mt-1.5 leading-relaxed">{body}</div>
+    </div>
+  );
+}
