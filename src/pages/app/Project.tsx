@@ -4,6 +4,7 @@ import { boqRows, projects, fmtMT } from "@/data/mock";
 import { Download, FileSpreadsheet, AlertTriangle, Calendar, Bell, TrendingUp, TrendingDown } from "lucide-react";
 import ProjectTasks from "@/components/dashboard/DailyTasks";
 import { useTasks } from "@/data/store";
+import { exportBoQPDF, exportBoQExcel } from "@/lib/exports";
 
 const phases = Object.keys(boqRows) as Array<keyof typeof boqRows>;
 type TabKey = "resumo" | "vista3d" | "tarefas" | (typeof phases)[number];
@@ -59,10 +60,10 @@ export default function Project() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button className="inline-flex items-center gap-2 border border-border px-4 py-2 rounded-md text-sm hover:bg-muted">
+            <button onClick={() => exportBoQExcel(project.name)} className="inline-flex items-center gap-2 border border-border px-4 py-2 rounded-md text-sm hover:bg-muted">
               <FileSpreadsheet className="size-4" /> Exportar Excel
             </button>
-            <button className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90">
+            <button onClick={() => exportBoQPDF(project.name)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90">
               <Download className="size-4" /> Exportar PDF
             </button>
           </div>
