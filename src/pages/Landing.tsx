@@ -4,6 +4,21 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, ContactShadows, Environment } from "@react-three/drei";
 import BuildingModel, { PhaseKey, PHASE_COLORS } from "@/components/three/BuildingModel";
 import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  Legend,
+  CartesianGrid,
+  AreaChart,
+  Area,
+} from "recharts";
+import {
   ArrowRight,
   Building2,
   FileSearch,
@@ -22,6 +37,9 @@ import {
   CheckCircle2,
   TrendingUp,
   ScrollText,
+  BarChart3,
+  LineChart as LineChartIcon,
+  PieChart,
 } from "lucide-react";
 
 const ALL_PHASES: PhaseKey[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "acabamentos"];
