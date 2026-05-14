@@ -4,6 +4,7 @@ import { auditEntries } from "./mock";
 const TASKS_KEY = "sqi.tasks.v1";
 const QUOTES_KEY = "sqi.quotes.v1";
 const AUDIT_KEY = "sqi.audit.v1";
+const RISK_KEY = "sqi.risk.v1";
 
 function loadLS<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -54,6 +55,7 @@ const persist = () => {
   saveLS(TASKS_KEY, tasks);
   saveLS(AUDIT_KEY, audit);
   saveLS(QUOTES_KEY, quotes);
+  saveLS(RISK_KEY, risks);
 };
 const emit = () => {
   persist();
@@ -114,5 +116,79 @@ export function resetStore() {
   tasks = [...initialTasks];
   audit = [...auditEntries];
   quotes = [];
+  risks = [];
+  emit();
+}
+
+// === Risk justifications & approvals ===
+export type RiskReason = "urgencia" | "logistica" | "qualidade" | "fornecedor_unico" | "outro";
+export type RiskStatus = "pendente" | "aprovado" | "rejeitado";
+export type RiskCase = {
+  id: string;
+  materialId: string;
+  materialName: string;
+  supplierName: string;
+  marketPrice: number;
+  supplierPrice: number;
+  deviationPct: number;
+  reason?: RiskReason;
+  observation?: string;
+  status: RiskStatus;
+  createdBy: string;
+  createdAt: string;
+  decidedBy?: string;
+  decidedAt?: string;
+};
+
+let risks: RiskCase[] = loadLS<RiskCase[]>(RISK_KEY, []);
+export function useRisks() {
+  return useSyncExternalStore(subscribe, () => risks, () => risks);
+}
+
+export function openRiskCase(c: Omit<RiskCase, "id" | "status" | "createdAt">) {
+  const newC: RiskCase = {
+    ...c,
+    id: `r${Date.now()}`,
+    status: "pendente",
+    createdAt: nowStamp(),
+  };
+  risks = [newC, ...risks];
+  audit = [
+    {
+      dt: nowStamp(),
+      user: c.createdBy,
+      item: `Caso de risco aberto — ${c.materialName}`,
+      from: `Mediana ${c.marketPrice} MT`,
+      to: `${c.supplierName}: ${c.supplierPrice} MT`,
+      delta: Math.round(c.deviationPct),
+      just: "Aguarda justificação",
+    },
+    ...audit,
+  ];
+  emit();
+  return newC.id;
+}
+
+export function justifyRisk(id: string, reason: RiskReason, observation: string) {
+  risks = risks.map((r) => (r.id === id ? { ...r, reason, observation } : r));
+  emit();
+}
+
+export function decideRisk(id: string, status: "aprovado" | "rejeitado", user = "Cláudia M. (Gestor)") {
+  const r = risks.find((x) => x.id === id);
+  if (!r) return;
+  risks = risks.map((x) => (x.id === id ? { ...x, status, decidedBy: user, decidedAt: nowStamp() } : x));
+  audit = [
+    {
+      dt: nowStamp(),
+      user,
+      item: `Caso de risco ${status} — ${r.materialName}`,
+      from: `${r.supplierName}: ${r.supplierPrice} MT`,
+      to: status === "aprovado" ? "✓ aprovado" : "✗ rejeitado",
+      delta: Math.round(r.deviationPct),
+      just: r.observation || `Motivo: ${r.reason || "n/d"}`,
+    },
+    ...audit,
+  ];
   emit();
 }
