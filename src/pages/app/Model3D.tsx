@@ -140,7 +140,8 @@ export default function Model3D() {
                   />
                 )}
                 <ContactShadows position={[0, -0.79, 0]} opacity={0.35} blur={2.5} far={20} />
-                <Environment preset="city" />
+                <hemisphereLight args={["#ffffff", "#444466", 0.9]} />
+                <directionalLight position={[10, 15, 8]} intensity={0.9} />
               </Suspense>
               <OrbitControls
                 enablePan
