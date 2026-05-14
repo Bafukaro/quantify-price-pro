@@ -2,6 +2,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { boqRows, projects, fmtMT } from "@/data/mock";
 import { Download, FileSpreadsheet, AlertTriangle, Calendar, Bell, TrendingUp, TrendingDown } from "lucide-react";
+import { marketMedian, classifyRisk, RISK_COLOR, RISK_LABEL } from "@/data/priceDb";
 import ProjectTasks from "@/components/dashboard/DailyTasks";
 import { useTasks } from "@/data/store";
 import { exportBoQPDF, exportBoQExcel } from "@/lib/exports";
@@ -207,10 +208,24 @@ function TabBtn({ label, active, onClick, badge }: { label: string; active: bool
 
 function BoQTable({ phase, ivaPct, contPct }: { phase: keyof typeof boqRows; ivaPct: number; contPct: number }) {
   const rows = boqRows[phase];
-  const totalFase = rows.reduce((a, r) => a + r.qty * r.atual, 0);
+  // Resolve dynamic price for items linked to priceDb (median of all current quotes)
+  const resolved = rows.map((r) => {
+    const market = r.materialId ? marketMedian(r.materialId) : 0;
+    const price = market > 0 ? market : r.atual;
+    const delta = ((price - r.p2019) / r.p2019) * 100;
+    const risk = classifyRisk(delta);
+    return { ...r, price, market, delta, risk, total: r.qty * price, dynamic: market > 0 };
+  });
+  const totalFase = resolved.reduce((a, r) => a + r.total, 0);
   const grandTotal = totalFase * (1 + ivaPct + contPct);
   return (
     <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
+        {resolved.some((r) => r.dynamic) && (
+          <div className="px-5 py-2 bg-accent/5 border-b border-border text-[11px] text-muted-foreground flex items-center gap-2">
+            <span className="size-1.5 rounded-full bg-accent animate-pulse" />
+            Preços actualizados em tempo real a partir da Base de Preços (mediana de mercado).
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/60 text-muted-foreground text-xs uppercase tracking-wider">
@@ -223,13 +238,11 @@ function BoQTable({ phase, ivaPct, contPct }: { phase: keyof typeof boqRows; iva
                 <Th>Preço actual</Th>
                 <Th>Δ%</Th>
                 <Th>Total (MT)</Th>
-                <Th>Alerta</Th>
+                <Th>Risco</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rows.map((r) => {
-                const delta = ((r.atual - r.p2019) / r.p2019) * 100;
-                const total = r.qty * r.atual;
+              {resolved.map((r) => {
                 return (
                   <tr key={r.item} className="hover:bg-muted/30">
                     <Td className="font-mono">{r.item}</Td>
@@ -237,19 +250,19 @@ function BoQTable({ phase, ivaPct, contPct }: { phase: keyof typeof boqRows; iva
                     <Td className="text-muted-foreground">{r.un}</Td>
                     <Td className="font-mono">{r.qty.toLocaleString("pt-PT")}</Td>
                     <Td className="font-mono text-muted-foreground">{r.p2019.toLocaleString("pt-PT")}</Td>
-                    <Td className={`font-mono ${r.alert ? "text-destructive font-medium" : ""}`}>
-                      {r.atual.toLocaleString("pt-PT")}
+                    <Td className={`font-mono ${r.risk === "alto" ? "text-destructive font-medium" : r.risk === "atencao" ? "text-warning font-medium" : ""}`}>
+                      {Math.round(r.price).toLocaleString("pt-PT")}
+                      {r.dynamic && <div className="text-[9px] text-accent uppercase tracking-wider">live</div>}
                     </Td>
-                    <Td className={`font-mono ${delta > 15 ? "text-destructive" : "text-muted-foreground"}`}>
-                      +{delta.toFixed(0)}%
+                    <Td className={`font-mono ${r.delta > 15 ? "text-destructive" : "text-muted-foreground"}`}>
+                      +{r.delta.toFixed(0)}%
                     </Td>
-                    <Td className="font-mono font-medium">{total.toLocaleString("pt-PT")}</Td>
+                    <Td className="font-mono font-medium">{Math.round(r.total).toLocaleString("pt-PT")}</Td>
                     <Td>
-                      {r.alert && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-xs">
-                          <AlertTriangle className="size-3" /> &gt;15%
-                        </span>
-                      )}
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${RISK_COLOR[r.risk]}`}>
+                        {r.risk !== "normal" && <AlertTriangle className="size-3" />}
+                        {RISK_LABEL[r.risk]}
+                      </span>
                     </Td>
                   </tr>
                 );

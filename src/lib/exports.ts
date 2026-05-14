@@ -2,21 +2,26 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { boqRows, fmtMT } from "@/data/mock";
+import { marketMedian, classifyRisk, RISK_LABEL } from "@/data/priceDb";
 
 type BoQKey = keyof typeof boqRows;
 
 function buildRows(phase: BoQKey) {
   return boqRows[phase].map((r) => {
-    const delta = ((r.atual - r.p2019) / r.p2019) * 100;
-    const total = r.qty * r.atual;
+    const market = r.materialId ? marketMedian(r.materialId) : 0;
+    const price = market > 0 ? market : r.atual;
+    const delta = ((price - r.p2019) / r.p2019) * 100;
+    const total = r.qty * price;
+    const risk = classifyRisk(delta);
     return {
       Item: r.item,
       Descrição: r.desc,
       Un: r.un,
       Qtd: r.qty,
       "Preço 2019": r.p2019,
-      "Preço actual": r.atual,
+      "Preço actual": Math.round(price),
       "Δ%": `+${delta.toFixed(0)}%`,
+      Risco: RISK_LABEL[risk],
       "Total (MT)": Math.round(total),
     };
   });
@@ -43,7 +48,7 @@ export function exportBoQPDF(projectName: string) {
       body: data.map((r) => Object.values(r) as any),
       styles: { fontSize: 8 },
       headStyles: { fillColor: [30, 50, 90] },
-      foot: [["", "", "", "", "", "", "Subtotal", fmtMT(subtotal)]],
+      foot: [["", "", "", "", "", "", "", "Subtotal", fmtMT(subtotal)]],
       footStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: "bold" },
     });
     y = (doc as any).lastAutoTable.finalY + 10;

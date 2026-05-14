@@ -77,36 +77,47 @@ export const projects = [
   },
 ];
 
-export const boqRows = {
+export type BoqRow = {
+  item: string;
+  desc: string;
+  un: string;
+  qty: number;
+  p2019: number;
+  atual: number;
+  alert: boolean;
+  materialId: string | null;
+};
+
+export const boqRows: Record<string, BoqRow[]> = {
   "Fase 0 — Preliminares": [
-    { item: "0.1", desc: "Limpeza e desmatação do terreno", un: "m²", qty: 1240, p2019: 35, atual: 42, alert: false },
-    { item: "0.2", desc: "Vedação provisória em chapa zincada", un: "m", qty: 180, p2019: 950, atual: 1180, alert: true },
-    { item: "0.3", desc: "Instalação de estaleiro", un: "vg", qty: 1, p2019: 280000, atual: 320000, alert: false },
+    { item: "0.1", desc: "Limpeza e desmatação do terreno", un: "m²", qty: 1240, p2019: 35, atual: 42, alert: false, materialId: null },
+    { item: "0.2", desc: "Vedação provisória em chapa zincada", un: "m", qty: 180, p2019: 950, atual: 1180, alert: true, materialId: null },
+    { item: "0.3", desc: "Instalação de estaleiro", un: "vg", qty: 1, p2019: 280000, atual: 320000, alert: false, materialId: null },
   ],
   "Fase 1 — Estrutura": [
-    { item: "1.1", desc: "Betão armado em fundações C25/30", un: "m³", qty: 142, p2019: 8500, atual: 9800, alert: false },
-    { item: "1.2", desc: "Aço A500 NR — varões nervurados", un: "kg", qty: 18450, p2019: 95, atual: 142, alert: true },
-    { item: "1.3", desc: "Cofragem em madeira de pinho", un: "m²", qty: 980, p2019: 480, atual: 560, alert: false },
-    { item: "1.4", desc: "Lajes maciças e², 18 cm", un: "m²", qty: 620, p2019: 2200, atual: 2680, alert: false },
+    { item: "1.1", desc: "Betão armado em fundações C25/30", un: "m³", qty: 142, p2019: 8500, atual: 9800, alert: false, materialId: null },
+    { item: "1.2", desc: "Aço A500 NR — varões nervurados", un: "kg", qty: 18450, p2019: 95, atual: 142, alert: true, materialId: "m-aco-a500-10" },
+    { item: "1.3", desc: "Cofragem em madeira de pinho", un: "m²", qty: 980, p2019: 480, atual: 560, alert: false, materialId: null },
+    { item: "1.4", desc: "Lajes maciças e², 18 cm", un: "m²", qty: 620, p2019: 2200, atual: 2680, alert: false, materialId: null },
   ],
   "Fase 2 — Alvenaria / Cobertura": [
-    { item: "2.1", desc: "Tijolo cerâmico furado 11x20x30", un: "un", qty: 28400, p2019: 18, atual: 24, alert: false },
-    { item: "2.2", desc: "Argamassa de assentamento 1:4", un: "m³", qty: 38, p2019: 5800, atual: 7100, alert: false },
-    { item: "2.3", desc: "Chapa lacada para cobertura", un: "m²", qty: 410, p2019: 1100, atual: 1480, alert: true },
+    { item: "2.1", desc: "Tijolo cerâmico furado 11x20x30", un: "un", qty: 28400, p2019: 18, atual: 24, alert: false, materialId: "m-tijolo-furado" },
+    { item: "2.2", desc: "Argamassa de assentamento 1:4", un: "m³", qty: 38, p2019: 5800, atual: 7100, alert: false, materialId: null },
+    { item: "2.3", desc: "Chapa lacada para cobertura", un: "m²", qty: 410, p2019: 1100, atual: 1480, alert: true, materialId: null },
   ],
   "Fase 3 — Instalações": [
-    { item: "3.1", desc: "Tubo PVC PN10 Ø 50mm", un: "m", qty: 320, p2019: 145, atual: 195, alert: false },
-    { item: "3.2", desc: "Cabo eléctrico XV 3x2.5mm²", un: "m", qty: 880, p2019: 85, atual: 168, alert: true },
-    { item: "3.3", desc: "Quadro eléctrico 24 módulos", un: "un", qty: 4, p2019: 12500, atual: 18900, alert: true },
+    { item: "3.1", desc: "Tubo PVC PN10 Ø 50mm", un: "m", qty: 320, p2019: 145, atual: 195, alert: false, materialId: "m-pvc-pn10-50" },
+    { item: "3.2", desc: "Cabo eléctrico XV 3x2.5mm²", un: "m", qty: 880, p2019: 85, atual: 168, alert: true, materialId: "m-cabo-xv-25" },
+    { item: "3.3", desc: "Quadro eléctrico 24 módulos", un: "un", qty: 4, p2019: 12500, atual: 18900, alert: true, materialId: null },
   ],
   "Fase 4 — Acabamentos": [
-    { item: "4.1", desc: "Reboco areado fino interior", un: "m²", qty: 1860, p2019: 320, atual: 410, alert: false },
-    { item: "4.2", desc: "Tinta plástica branca interior 2 mãos", un: "m²", qty: 1860, p2019: 95, atual: 138, alert: false },
-    { item: "4.3", desc: "Pavimento cerâmico 60x60 1ª esc.", un: "m²", qty: 480, p2019: 580, atual: 720, alert: false },
+    { item: "4.1", desc: "Reboco areado fino interior", un: "m²", qty: 1860, p2019: 320, atual: 410, alert: false, materialId: null },
+    { item: "4.2", desc: "Tinta plástica branca interior 2 mãos", un: "m²", qty: 1860, p2019: 95, atual: 138, alert: false, materialId: "m-tinta-15l" },
+    { item: "4.3", desc: "Pavimento cerâmico 60x60 1ª esc.", un: "m²", qty: 480, p2019: 580, atual: 720, alert: false, materialId: null },
   ],
   "Fase 5 — Exteriores": [
-    { item: "5.1", desc: "Pavê betão cinza 8 cm", un: "m²", qty: 380, p2019: 480, atual: 620, alert: false },
-    { item: "5.2", desc: "Muro em blocos de cimento h=2m", un: "m", qty: 145, p2019: 1850, atual: 2240, alert: false },
+    { item: "5.1", desc: "Pavê betão cinza 8 cm", un: "m²", qty: 380, p2019: 480, atual: 620, alert: false, materialId: null },
+    { item: "5.2", desc: "Muro em blocos de cimento h=2m", un: "m", qty: 145, p2019: 1850, atual: 2240, alert: false, materialId: null },
   ],
 };
 

@@ -1,39 +1,49 @@
-import { Fragment, useState } from "react";
-import { priceRows } from "@/data/mock";
-import { Plus, Filter, AlertTriangle, TrendingUp, X, Camera, ChevronDown } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Legend } from "recharts";
+import { Fragment, useMemo, useState } from "react";
+import { allStats, materials, RISK_COLOR, RISK_LABEL, type MaterialStats } from "@/data/priceDb";
+import { Plus, Filter, AlertTriangle, TrendingUp, X, Camera, ChevronDown, Building2, Store } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Legend, BarChart, Bar, Cell as RCell } from "recharts";
 import { addQuote, useQuotes } from "@/data/store";
 
-const cats = ["Todos", "Cimento", "Ferro", "PVC", "Eléctrica", "Tintas"];
+const cats = ["Todos", "Cimento", "Ferro", "PVC", "Eléctrica", "Tintas", "Madeira", "Agregados"];
 const months = ["Dez 25", "Jan 26", "Fev 26", "Mar 26", "Abr 26", "Mai 26"];
 
-function genHistory(mediana: number, fA: number, fB: number, fC: number) {
+function genHistory(stats: MaterialStats) {
+  const baseline = stats.median * 0.7;
   return months.map((m, i) => {
     const t = i / (months.length - 1);
-    return {
-      month: m,
-      "Forn. A": Math.round(fA * (0.7 + 0.3 * t) + (i % 2 ? 5 : -3)),
-      "Forn. B": Math.round(fB * (0.72 + 0.28 * t)),
-      "Forn. C": Math.round(fC * (0.65 + 0.35 * t) + (i === 4 ? 12 : 0)),
-      mediana,
-    };
+    const row: Record<string, number | string> = { month: m, mediana: Math.round(baseline + (stats.median - baseline) * t) };
+    stats.byQuote.forEach(({ supplier, quote }) => {
+      row[supplier.name] = Math.round(quote.price * (0.7 + 0.3 * t) + (i % 2 ? 4 : -3));
+    });
+    return row;
   });
 }
+
+const SUPPLIER_COLORS = ["hsl(211 70% 50%)", "hsl(220 10% 50%)", "hsl(0 70% 55%)", "hsl(38 92% 50%)", "hsl(152 55% 38%)"];
 
 export default function Prices() {
   const [cat, setCat] = useState("Todos");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [fabOpen, setFabOpen] = useState(false);
   const quotes = useQuotes();
-  const allRows = [
-    ...quotes.map((q) => ({ material: q.material, un: "—", cat: "Novo", fA: q.price, fB: q.price, fC: q.price, mediana: q.price, desvio: 0, _new: true as const })),
-    ...priceRows.map((r) => ({ ...r, _new: false as const })),
-  ];
-  const filtered = cat === "Todos" ? allRows : allRows.filter((r) => r.cat === cat);
+  const stats = useMemo(() => allStats(), []);
+  const filtered = cat === "Todos" ? stats : stats.filter((s) => s.material.category === cat);
 
   return (
     <div className="space-y-6 animate-fade-in relative pb-24">
       {/* Header actions */}
+      {/* Quotes added quickly via FAB */}
+      {quotes.length > 0 && (
+        <div className="rounded-xl border border-success/30 bg-success/5 p-4 text-sm">
+          <div className="text-[11px] uppercase tracking-wider text-success font-medium">Cotações adicionadas no terreno · {quotes.length}</div>
+          <ul className="mt-2 space-y-1 text-xs">
+            {quotes.slice(0, 3).map((q, i) => (
+              <li key={i} className="flex justify-between"><span>{q.material} — {q.supplier}</span><span className="font-mono">{q.price.toLocaleString("pt-PT")} MT</span></li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
           <Filter className="size-4 text-muted-foreground" />
@@ -65,78 +75,109 @@ export default function Prices() {
                 <th className="px-2 py-3 w-8"></th>
                 <th className="px-4 py-3 text-left">Material</th>
                 <th className="px-4 py-3">Un</th>
-                <th className="px-4 py-3">Forn. A</th>
-                <th className="px-4 py-3">Forn. B</th>
-                <th className="px-4 py-3">Forn. C</th>
+                <th className="px-4 py-3">Mín</th>
                 <th className="px-4 py-3">Mediana</th>
-                <th className="px-4 py-3">Desvio %</th>
-                <th className="px-4 py-3">Alerta</th>
+                <th className="px-4 py-3">Máx</th>
+                <th className="px-4 py-3">σ (DP)</th>
+                <th className="px-4 py-3">Spread</th>
+                <th className="px-4 py-3">Risco</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map((r) => {
-                const high = r.desvio > 15;
-                const isOpen = expanded === r.material;
-                const data = genHistory(r.mediana, r.fA, r.fB, r.fC);
-                const change = Math.round(((data[5]["Forn. B"] - data[1]["Forn. B"]) / data[1]["Forn. B"]) * 100);
+              {filtered.map((s) => {
+                const isOpen = expanded === s.material.id;
+                const history = genHistory(s);
                 return (
-                  <Fragment key={r.material}>
-                  <tr onClick={() => setExpanded(isOpen ? null : r.material)} className="hover:bg-muted/30 cursor-pointer">
-                    <td className="px-2 py-3 text-center text-muted-foreground">
-                      <ChevronDown className={`size-4 mx-auto transition ${isOpen ? "rotate-180" : ""}`} />
-                    </td>
-                    <td className="px-4 py-3 text-left">
-                      <div className="font-medium">{r.material} {r._new && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-success/10 text-success">NOVO</span>}</div>
-                      <div className="text-xs text-muted-foreground">{r.cat}</div>
-                    </td>
-                    <td className="px-4 py-3 text-center text-muted-foreground">{r.un}</td>
-                    <Cell value={r.fA} mediana={r.mediana} />
-                    <Cell value={r.fB} mediana={r.mediana} />
-                    <Cell value={r.fC} mediana={r.mediana} />
-                    <td className="px-4 py-3 text-center font-mono font-medium">
-                      {r.mediana.toLocaleString("pt-PT")}
-                    </td>
-                    <td className={`px-4 py-3 text-center font-mono ${high ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                      {r.desvio}%
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {high ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-xs">
-                          <AlertTriangle className="size-3" /> Desvio
+                  <Fragment key={s.material.id}>
+                    <tr onClick={() => setExpanded(isOpen ? null : s.material.id)} className="hover:bg-muted/30 cursor-pointer">
+                      <td className="px-2 py-3 text-center text-muted-foreground">
+                        <ChevronDown className={`size-4 mx-auto transition ${isOpen ? "rotate-180" : ""}`} />
+                      </td>
+                      <td className="px-4 py-3 text-left">
+                        <div className="font-medium">{s.material.name}</div>
+                        <div className="text-xs text-muted-foreground">{s.material.category} · {s.material.quotes.length} cotações</div>
+                      </td>
+                      <td className="px-4 py-3 text-center text-muted-foreground">{s.material.unit}</td>
+                      <td className="px-4 py-3 text-center font-mono text-muted-foreground">{s.min.toLocaleString("pt-PT")}</td>
+                      <td className="px-4 py-3 text-center font-mono font-medium">{s.median.toLocaleString("pt-PT")}</td>
+                      <td className="px-4 py-3 text-center font-mono text-muted-foreground">{s.max.toLocaleString("pt-PT")}</td>
+                      <td className="px-4 py-3 text-center font-mono text-xs text-muted-foreground">±{s.std.toFixed(0)}</td>
+                      <td className={`px-4 py-3 text-center font-mono ${s.spreadPct > 20 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                        {s.spreadPct.toFixed(0)}%
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${RISK_COLOR[s.topRisk]}`}>
+                          {s.topRisk === "normal" ? <TrendingUp className="size-3" /> : <AlertTriangle className="size-3" />}
+                          {RISK_LABEL[s.topRisk]}
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-success text-xs">
-                          <TrendingUp className="size-3" /> OK
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                  {isOpen && (
-                    <tr className="bg-muted/20">
-                      <td colSpan={9} className="px-6 py-5">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="text-sm font-medium">Evolução de preço — últimos 6 meses</div>
-                          <div className={`text-xs font-mono ${change > 0 ? "text-destructive" : "text-success"}`}>
-                            {change > 0 ? "▲" : "▼"} {Math.abs(change)}% desde Jan 2026
-                          </div>
-                        </div>
-                        <div className="h-56 w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
-                              <XAxis dataKey="month" stroke="hsl(220 10% 50%)" fontSize={11} />
-                              <YAxis stroke="hsl(220 10% 50%)" fontSize={11} />
-                              <Tooltip contentStyle={{ background: "hsl(var(--surface-elevated))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }} />
-                              <Legend wrapperStyle={{ fontSize: 11 }} />
-                              <ReferenceLine y={r.mediana} stroke="hsl(var(--accent))" strokeDasharray="4 4" label={{ value: "Mediana", fontSize: 10, fill: "hsl(var(--accent))" }} />
-                              <Line type="monotone" dataKey="Forn. A" stroke="hsl(211 70% 50%)" strokeWidth={2} dot={{ r: 3 }} />
-                              <Line type="monotone" dataKey="Forn. B" stroke="hsl(220 10% 50%)" strokeWidth={2} dot={{ r: 3 }} />
-                              <Line type="monotone" dataKey="Forn. C" stroke="hsl(0 70% 55%)" strokeWidth={2} dot={{ r: 3 }} />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        </div>
                       </td>
                     </tr>
-                  )}
+                    {isOpen && (
+                      <tr className="bg-muted/20">
+                        <td colSpan={9} className="px-6 py-5 space-y-5">
+                          {/* Per-supplier breakdown */}
+                          <div>
+                            <div className="text-sm font-medium mb-2">Cotações por fornecedor (formal vs informal)</div>
+                            <div className="grid sm:grid-cols-2 gap-2">
+                              {s.byQuote.map(({ quote, supplier, deviationPct, risk }) => (
+                                <div key={supplier.id} className="flex items-center justify-between p-2.5 rounded-md bg-background border border-border">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    {supplier.type === "formal" ? <Building2 className="size-4 text-primary shrink-0" /> : <Store className="size-4 text-warning shrink-0" />}
+                                    <div className="min-w-0">
+                                      <div className="text-sm truncate">{supplier.name}</div>
+                                      <div className="text-[10px] text-muted-foreground">{supplier.location} · {quote.date}{quote.invoice ? ` · ${quote.invoice}` : ""}{quote.hasPhoto ? " · 📷" : ""}</div>
+                                    </div>
+                                  </div>
+                                  <div className="text-right shrink-0 ml-3">
+                                    <div className="font-mono text-sm">{quote.price.toLocaleString("pt-PT")}</div>
+                                    <div className={`text-[10px] font-mono ${risk === "normal" ? "text-success" : risk === "atencao" ? "text-warning" : "text-destructive"}`}>
+                                      {deviationPct > 0 ? "+" : ""}{deviationPct.toFixed(1)}% · {RISK_LABEL[risk]}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Bar chart deviations */}
+                          <div className="h-44 w-full">
+                            <div className="text-xs text-muted-foreground mb-1">Desvio % vs mediana de mercado</div>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={s.byQuote.map((q) => ({ name: q.supplier.name.split(" ")[0], dev: +q.deviationPct.toFixed(1), risk: q.risk }))}>
+                                <XAxis dataKey="name" fontSize={10} stroke="hsl(220 10% 50%)" />
+                                <YAxis fontSize={10} stroke="hsl(220 10% 50%)" />
+                                <Tooltip contentStyle={{ background: "hsl(var(--surface-elevated))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 11 }} />
+                                <ReferenceLine y={0} stroke="hsl(220 10% 50%)" />
+                                <Bar dataKey="dev" radius={[4, 4, 0, 0]}>
+                                  {s.byQuote.map((q, i) => (
+                                    <RCell key={i} fill={q.risk === "alto" ? "hsl(var(--destructive))" : q.risk === "atencao" ? "hsl(var(--warning))" : "hsl(var(--success))"} />
+                                  ))}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+
+                          {/* Trend line */}
+                          <div>
+                            <div className="text-sm font-medium mb-2">Evolução — últimos 6 meses</div>
+                            <div className="h-56 w-full">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={history} margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
+                                  <XAxis dataKey="month" stroke="hsl(220 10% 50%)" fontSize={11} />
+                                  <YAxis stroke="hsl(220 10% 50%)" fontSize={11} />
+                                  <Tooltip contentStyle={{ background: "hsl(var(--surface-elevated))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }} />
+                                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                                  <ReferenceLine y={s.median} stroke="hsl(var(--accent))" strokeDasharray="4 4" label={{ value: "Mediana", fontSize: 10, fill: "hsl(var(--accent))" }} />
+                                  {s.byQuote.map((q, i) => (
+                                    <Line key={q.supplier.id} type="monotone" dataKey={q.supplier.name} stroke={SUPPLIER_COLORS[i % SUPPLIER_COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} />
+                                  ))}
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </Fragment>
                 );
               })}
@@ -156,17 +197,6 @@ export default function Prices() {
 
       {fabOpen && <QuickQuoteModal onClose={() => setFabOpen(false)} />}
     </div>
-  );
-}
-
-function Cell({ value, mediana }: { value: number; mediana: number }) {
-  const desv = ((value - mediana) / mediana) * 100;
-  const high = desv > 15;
-  return (
-    <td className={`px-4 py-3 text-center font-mono ${high ? "bg-destructive/5 text-destructive" : ""}`}>
-      {value.toLocaleString("pt-PT")}
-      {high && <div className="text-[10px] uppercase tracking-wider">+{desv.toFixed(0)}%</div>}
-    </td>
   );
 }
 
@@ -195,7 +225,7 @@ function QuickQuoteModal({ onClose }: { onClose: () => void }) {
               placeholder="Ex: Cimento Portland 50kg"
               className="mt-1 w-full px-3 py-2.5 rounded-md border border-border bg-background text-sm" />
             <datalist id="mats">
-              {priceRows.map((r) => <option key={r.material} value={r.material} />)}
+              {materials.map((m) => <option key={m.id} value={m.name} />)}
             </datalist>
           </div>
           <div>

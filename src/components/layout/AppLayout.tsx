@@ -8,12 +8,16 @@ import {
   Bell,
   Search,
   Building2,
+  ShieldAlert,
+  Box,
 } from "lucide-react";
 
 const nav = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/app/projecto/p-001", label: "Projecto · BoQ", icon: FolderKanban },
+  { to: "/app/modelo-3d", label: "Modelo 3D / BIM", icon: Box },
   { to: "/app/precos", label: "Base de Preços", icon: Database },
+  { to: "/app/risco", label: "Análise de Risco", icon: ShieldAlert },
   { to: "/app/auditoria", label: "Audit Log", icon: ScrollText },
   { to: "/app/cronograma", label: "Cronograma", icon: GanttChartSquare },
 ];
@@ -21,6 +25,8 @@ const nav = [
 const titles: Record<string, string> = {
   "/app": "Dashboard — Visão geral dos projectos",
   "/app/precos": "Base de Dados de Preços",
+  "/app/risco": "Análise de Risco — Justificação & Aprovação",
+  "/app/modelo-3d": "Modelo 3D / BIM Viewer",
   "/app/auditoria": "Audit Log — Registo de Auditoria",
   "/app/cronograma": "Cronograma — Gantt interactivo",
 };
