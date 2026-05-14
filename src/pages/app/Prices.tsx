@@ -75,12 +75,12 @@ export default function Prices() {
                 <th className="px-2 py-3 w-8"></th>
                 <th className="px-4 py-3 text-left">Material</th>
                 <th className="px-4 py-3">Un</th>
-                <th className="px-4 py-3">Forn. A</th>
-                <th className="px-4 py-3">Forn. B</th>
-                <th className="px-4 py-3">Forn. C</th>
+                <th className="px-4 py-3">Mín</th>
                 <th className="px-4 py-3">Mediana</th>
-                <th className="px-4 py-3">Desvio %</th>
-                <th className="px-4 py-3">Alerta</th>
+                <th className="px-4 py-3">Máx</th>
+                <th className="px-4 py-3">σ (DP)</th>
+                <th className="px-4 py-3">Spread</th>
+                <th className="px-4 py-3">Risco</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
