@@ -12,6 +12,7 @@ import Prices from "./pages/app/Prices.tsx";
 import Audit from "./pages/app/Audit.tsx";
 import Schedule from "./pages/app/Schedule.tsx";
 import Model3D from "./pages/app/Model3D.tsx";
+import Risk from "./pages/app/Risk.tsx";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="projecto/:id" element={<Project />} />
             <Route path="modelo-3d" element={<Model3D />} />
             <Route path="precos" element={<Prices />} />
+            <Route path="risco" element={<Risk />} />
             <Route path="auditoria" element={<Audit />} />
             <Route path="cronograma" element={<Schedule />} />
           </Route>
