@@ -77,9 +77,20 @@ export const projects = [
   },
 ];
 
-export const boqRows = {
+export type BoqRow = {
+  item: string;
+  desc: string;
+  un: string;
+  qty: number;
+  p2019: number;
+  atual: number;
+  alert: boolean;
+  materialId: string | null;
+};
+
+export const boqRows: Record<string, BoqRow[]> = {
   "Fase 0 — Preliminares": [
-    { item: "0.1", desc: "Limpeza e desmatação do terreno", un: "m²", qty: 1240, p2019: 35, atual: 42, alert: false, materialId: null as string | null },
+    { item: "0.1", desc: "Limpeza e desmatação do terreno", un: "m²", qty: 1240, p2019: 35, atual: 42, alert: false, materialId: null },
     { item: "0.2", desc: "Vedação provisória em chapa zincada", un: "m", qty: 180, p2019: 950, atual: 1180, alert: true, materialId: null },
     { item: "0.3", desc: "Instalação de estaleiro", un: "vg", qty: 1, p2019: 280000, atual: 320000, alert: false, materialId: null },
   ],
