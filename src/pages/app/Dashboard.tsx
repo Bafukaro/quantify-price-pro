@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { projects, fmtMT } from "@/data/mock";
-import { AlertTriangle, ArrowUpRight, Plus, TrendingUp, Building2, Wallet, ListTodo } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Plus, TrendingUp, Building2, Wallet, ListTodo, Gauge, CheckCircle2, XCircle } from "lucide-react";
 import { useTasks } from "@/data/store";
 
 export default function Dashboard() {
@@ -31,9 +31,13 @@ export default function Dashboard() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Kpi icon={Building2} label="Projectos activos" value={String(projects.length)} delta="+1 este mês" />
         <Kpi icon={Wallet} label="Valor total gerido" value={fmtMT(totalGerido)} delta="MZN" />
-        <Kpi icon={TrendingUp} label="Redução de tempo" value="80%" delta="vs. orçamentação manual" />
+        <TraceabilityKpi />
         <Kpi icon={AlertTriangle} label="Alertas activos" value={String(totalAlertas)} delta="3 desvios de preço" warn />
       </div>
+
+      <TraceabilityPanel />
+
+      <ComparisonSection />
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-5">
@@ -163,6 +167,109 @@ function Kpi({ icon: Icon, label, value, delta, warn = false }: any) {
       </div>
       <div className="font-display text-3xl mt-3">{value}</div>
       <div className="text-xs text-muted-foreground mt-1">{delta}</div>
+    </div>
+  );
+}
+
+function TraceabilityKpi() {
+  const score = 78;
+  return (
+    <div className="p-5 rounded-xl bg-surface-elevated border border-border shadow-soft">
+      <div className="flex items-center justify-between">
+        <div className="text-xs uppercase tracking-wider text-muted-foreground">Decision Traceability</div>
+        <Gauge className="size-4 text-accent" />
+      </div>
+      <div className="font-display text-3xl mt-3">{score}%</div>
+      <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+        <div
+          className={`h-full ${score >= 80 ? "bg-success" : score >= 60 ? "bg-warning" : "bg-destructive"}`}
+          style={{ width: `${score}%` }}
+        />
+      </div>
+      <div className="text-xs text-muted-foreground mt-1">Governance score</div>
+    </div>
+  );
+}
+
+function TraceabilityPanel() {
+  const rows = [
+    { level: "Risco Baixo", score: 90, tone: "bg-success" },
+    { level: "Risco Médio", score: 65, tone: "bg-warning" },
+    { level: "Risco Alto", score: 40, tone: "bg-destructive" },
+  ];
+  return (
+    <div className="rounded-xl border border-border bg-surface-elevated p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-display text-lg">Decision Traceability Score</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Métrica de engenharia para rastreabilidade e accountability das decisões.
+          </p>
+        </div>
+        <Link to="/app/auditoria" className="text-xs font-medium text-accent hover:underline">
+          Ver audit log →
+        </Link>
+      </div>
+      <div className="grid md:grid-cols-3 gap-5 mt-5">
+        {rows.map((r) => (
+          <div key={r.level}>
+            <div className="flex items-center justify-between text-sm mb-2">
+              <span className="font-medium">{r.level}</span>
+              <span className="font-mono text-muted-foreground">{r.score}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div className={`h-full ${r.tone}`} style={{ width: `${r.score}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ComparisonSection() {
+  const rows = [
+    ["Quantitativos", "Manual, folha de cálculo", "Extracção automática a partir de IFC / BIM"],
+    ["Preços", "Cotações informais isoladas", "Análise estatística (mediana, σ, spread)"],
+    ["Rastreabilidade", "Sem registo formal", "Audit log imutável por acção"],
+    ["Decisão", "Subjectiva", "Workflow baseado em risco com justificação"],
+    ["Relatórios", "Manuais, formato livre", "Geração automática PDF / Excel"],
+    ["Compliance", "Verificação ad-hoc", "Indicadores REBAP / EC / EN 206"],
+  ];
+  return (
+    <div className="rounded-xl border border-border bg-surface-elevated overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <h3 className="font-display text-lg">Workflow Tradicional vs QSystem</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">Comparação técnica directa de processos.</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
+            <tr>
+              <th className="text-left px-5 py-3 w-1/4">Dimensão</th>
+              <th className="text-left px-5 py-3">Workflow Tradicional</th>
+              <th className="text-left px-5 py-3">QSystem</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([dim, trad, qsys]) => (
+              <tr key={dim} className="border-t border-border">
+                <td className="px-5 py-3 font-medium">{dim}</td>
+                <td className="px-5 py-3 text-muted-foreground">
+                  <span className="inline-flex items-center gap-2">
+                    <XCircle className="size-3.5 text-destructive shrink-0" /> {trad}
+                  </span>
+                </td>
+                <td className="px-5 py-3">
+                  <span className="inline-flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-success shrink-0" /> {qsys}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

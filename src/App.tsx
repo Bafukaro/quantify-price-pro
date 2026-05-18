@@ -13,6 +13,10 @@ import Audit from "./pages/app/Audit.tsx";
 import Schedule from "./pages/app/Schedule.tsx";
 import Model3D from "./pages/app/Model3D.tsx";
 import Risk from "./pages/app/Risk.tsx";
+import Compliance from "./pages/app/Compliance.tsx";
+import Workflow from "./pages/app/Workflow.tsx";
+import CaseStudy from "./pages/app/CaseStudy.tsx";
+import Reports from "./pages/app/Reports.tsx";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +34,10 @@ const App = () => (
             <Route path="modelo-3d" element={<Model3D />} />
             <Route path="precos" element={<Prices />} />
             <Route path="risco" element={<Risk />} />
+            <Route path="compliance" element={<Compliance />} />
+            <Route path="workflow" element={<Workflow />} />
+            <Route path="caso-estudo" element={<CaseStudy />} />
+            <Route path="relatorios" element={<Reports />} />
             <Route path="auditoria" element={<Audit />} />
             <Route path="cronograma" element={<Schedule />} />
           </Route>
