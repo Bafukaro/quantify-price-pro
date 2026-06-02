@@ -366,3 +366,360 @@ function Total({ label, value, highlight = false }: any) {
     </div>
   );
 }
+
+// ===================== FASES =====================
+function FasesView({ ivaPct, contPct }: { ivaPct: number; contPct: number }) {
+  const [open, setOpen] = useState<string>(phases[0]);
+  return (
+    <div className="space-y-3">
+      {phases.map((ph) => {
+        const rows = boqRows[ph];
+        const subtotal = rows.reduce((a, r) => {
+          const m = r.materialId ? marketMedian(r.materialId) : 0;
+          return a + r.qty * (m > 0 ? m : r.atual);
+        }, 0);
+        const contracted = rows.reduce((a, r) => a + r.qty * r.p2019, 0);
+        const delta = ((subtotal - contracted) / contracted) * 100;
+        const alerts = rows.filter((r) => {
+          const m = r.materialId ? marketMedian(r.materialId) : 0;
+          const price = m > 0 ? m : r.atual;
+          return ((price - r.p2019) / r.p2019) * 100 > 15;
+        }).length;
+        const isOpen = open === ph;
+        return (
+          <div key={ph} className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
+            <button
+              onClick={() => setOpen(isOpen ? "" : ph)}
+              className="w-full flex items-center justify-between gap-4 px-5 py-4 hover:bg-muted/30 transition"
+            >
+              <div className="flex items-center gap-3 text-left">
+                <Layers className="size-4 text-accent" />
+                <div>
+                  <div className="font-display text-base">{ph}</div>
+                  <div className="text-xs text-muted-foreground">{rows.length} itens · {fmtMT(subtotal)}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                {alerts > 0 && (
+                  <span className="inline-flex items-center gap-1 text-xs text-warning">
+                    <AlertTriangle className="size-3" /> {alerts}
+                  </span>
+                )}
+                <span className={`text-xs font-mono ${delta > 15 ? "text-destructive" : "text-muted-foreground"}`}>
+                  Δ {delta > 0 ? "+" : ""}{delta.toFixed(1)}%
+                </span>
+              </div>
+            </button>
+            {isOpen && <BoQTable phase={ph} ivaPct={ivaPct} contPct={contPct} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ===================== CÁLCULOS (REBAP) =====================
+const REBAP_CHECKS: Array<{
+  phase: string;
+  items: { titulo: string; valor: string; norma: string; ok: boolean }[];
+}> = [
+  {
+    phase: "Fase 1 — Estrutura · Fundações",
+    items: [
+      { titulo: "Armadura longitudinal mínima (sapatas)", valor: "Ø10 // 0.15 m — As = 5.24 cm²/m", norma: "REBAP Art. 89 — mín. 0.10% da secção", ok: true },
+      { titulo: "Espaçamento mínimo entre varões", valor: "12 cm", norma: "REBAP Art. 78 — ≥ 1.5×Ømáx, mín. 4 cm", ok: true },
+      { titulo: "Classe de betão em fundações", valor: "C25/30", norma: "REBAP Art. 13 — mín. C20/25 em meio agressivo", ok: true },
+      { titulo: "Recobrimento das armaduras", valor: "4 cm", norma: "REBAP Art. 81 — mín. 3.5 cm em contacto com terreno", ok: true },
+    ],
+  },
+  {
+    phase: "Fase 1 — Estrutura · Pilares",
+    items: [
+      { titulo: "Taxa geométrica de armadura longitudinal", valor: "ρ = 1.2%", norma: "REBAP Art. 121 — 0.8% ≤ ρ ≤ 6%", ok: true },
+      { titulo: "Estribos — diâmetro", valor: "Ø8 mm", norma: "REBAP Art. 122 — ≥ Ømáx/4 e ≥ 6 mm", ok: true },
+      { titulo: "Espaçamento de estribos", valor: "15 cm", norma: "REBAP Art. 122 — ≤ 12·Ømin = 12 cm", ok: false },
+      { titulo: "Classe de betão pilares", valor: "C25/30", norma: "REBAP Art. 13 — mín. C20/25", ok: true },
+    ],
+  },
+  {
+    phase: "Fase 1 — Estrutura · Lajes",
+    items: [
+      { titulo: "Espessura mínima laje maciça", valor: "18 cm", norma: "REBAP Art. 102 — L/30 = 16.7 cm", ok: true },
+      { titulo: "Armadura de distribuição", valor: "Ø8 // 0.20 m", norma: "REBAP Art. 91 — mín. 20% da principal", ok: true },
+      { titulo: "Recobrimento", valor: "2.5 cm", norma: "REBAP Art. 81 — mín. 2.0 cm interior", ok: true },
+    ],
+  },
+  {
+    phase: "Fase 2 — Alvenaria",
+    items: [
+      { titulo: "Argamassa de assentamento", valor: "Traço 1:4 (cimento:areia)", norma: "EN 998-2 — classe M5 mínima", ok: true },
+      { titulo: "Espessura juntas", valor: "1.0 cm", norma: "Boa prática — 0.8 a 1.2 cm", ok: true },
+    ],
+  },
+];
+
+function CalculosView() {
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-3 p-4 rounded-lg border border-accent/30 bg-accent/5">
+        <ShieldCheck className="size-5 text-accent mt-0.5 shrink-0" />
+        <div className="text-sm">
+          <div className="font-medium">Cálculos estruturais — validação automática REBAP</div>
+          <div className="text-muted-foreground text-xs mt-0.5">
+            Cada resultado é confrontado com a norma aplicável. Itens fora de norma são sinalizados a vermelho.
+          </div>
+        </div>
+      </div>
+      {REBAP_CHECKS.map((g) => (
+        <div key={g.phase} className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
+          <div className="px-5 py-3 bg-muted/40 border-b border-border flex items-center gap-2">
+            <Calculator className="size-4 text-muted-foreground" />
+            <span className="font-display text-base">{g.phase}</span>
+          </div>
+          <ul className="divide-y divide-border">
+            {g.items.map((it) => (
+              <li key={it.titulo} className="px-5 py-3 flex items-start gap-3">
+                <span className={`mt-1.5 size-2 rounded-full shrink-0 ${it.ok ? "bg-success" : "bg-destructive"}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                    <div className="text-sm font-medium">{it.titulo}</div>
+                    <div className="font-mono text-sm">{it.valor}</div>
+                  </div>
+                  <div className={`text-xs mt-0.5 ${it.ok ? "text-muted-foreground" : "text-destructive"}`}>
+                    {it.ok ? "Conforme " : "Não conforme — "}{it.norma}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ===================== ORÇAMENTO =====================
+function OrcamentoView({ ivaPct, contPct, projectName }: { ivaPct: number; contPct: number; projectName: string }) {
+  const perPhase = phases.map((ph) => {
+    const subtotal = boqRows[ph].reduce((a, r) => {
+      const m = r.materialId ? marketMedian(r.materialId) : 0;
+      return a + r.qty * (m > 0 ? m : r.atual);
+    }, 0);
+    return { ph, subtotal };
+  });
+  const subtotalGeral = perPhase.reduce((a, p) => a + p.subtotal, 0);
+  const contingencia = subtotalGeral * contPct;
+  const iva = subtotalGeral * ivaPct;
+  const total = subtotalGeral + contingencia + iva;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-sm text-muted-foreground">
+          BoQ completo gerado automaticamente a partir das quantidades extraídas e da Base de Preços.
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => exportBoQExcel(projectName)} className="inline-flex items-center gap-2 border border-border px-3 py-1.5 rounded-md text-sm hover:bg-muted">
+            <FileSpreadsheet className="size-4" /> Excel
+          </button>
+          <button onClick={() => exportBoQPDF(projectName)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:opacity-90">
+            <Download className="size-4" /> PDF
+          </button>
+        </div>
+      </div>
+      {phases.map((ph) => (
+        <div key={ph} className="space-y-2">
+          <div className="text-sm font-display">{ph}</div>
+          <BoQTable phase={ph} ivaPct={0} contPct={0} />
+        </div>
+      ))}
+      <div className="rounded-xl bg-primary text-primary-foreground p-6 shadow-elegant">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-white/60">Total geral do projecto</div>
+        <div className="grid sm:grid-cols-4 gap-4 mt-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-white/60">Subtotal</div>
+            <div className="font-display text-lg">{fmtMT(subtotalGeral)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-white/60">Contingência {(contPct * 100).toFixed(0)}%</div>
+            <div className="font-display text-lg">{fmtMT(contingencia)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-white/60">IVA {(ivaPct * 100).toFixed(0)}%</div>
+            <div className="font-display text-lg">{fmtMT(iva)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-white/60">Total</div>
+            <div className="font-display text-2xl text-accent">{fmtMT(total)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===================== CRONOGRAMA =====================
+const TOTAL_WEEKS = 38;
+function CronogramaView() {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+        {Object.entries(phaseColors).map(([k, c]) => (
+          <span key={k} className="inline-flex items-center gap-1.5">
+            <span className="size-3 rounded-sm" style={{ background: c }} /> {k}
+          </span>
+        ))}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="size-3 rounded-sm border-2 border-destructive" /> Caminho crítico
+        </span>
+      </div>
+      <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
+        <div className="grid grid-cols-[240px_1fr] text-xs">
+          <div className="bg-muted/60 px-4 py-2.5 font-medium uppercase tracking-wider text-muted-foreground border-r border-border">Tarefa</div>
+          <div className="bg-muted/60 grid border-b border-border" style={{ gridTemplateColumns: `repeat(${TOTAL_WEEKS}, minmax(0, 1fr))` }}>
+            {Array.from({ length: TOTAL_WEEKS }).map((_, i) => (
+              <div key={i} className="text-center py-2.5 text-[10px] text-muted-foreground border-r border-border/50 last:border-r-0">
+                {i % 4 === 0 ? `S${i + 1}` : ""}
+              </div>
+            ))}
+          </div>
+          {ganttTasks.map((t, idx) => {
+            const color = phaseColors[t.phase];
+            return (
+              <div key={idx} className="contents">
+                <div className="px-4 py-3 border-r border-b border-border flex items-center gap-2">
+                  <span className="size-2 rounded-full" style={{ background: color }} />
+                  <span className="text-sm">{t.name}</span>
+                </div>
+                <div className="relative border-b border-border h-12 grid" style={{ gridTemplateColumns: `repeat(${TOTAL_WEEKS}, minmax(0, 1fr))` }}>
+                  {Array.from({ length: TOTAL_WEEKS }).map((_, i) => (
+                    <div key={i} className="border-r border-border/40 last:border-r-0" />
+                  ))}
+                  <div
+                    className={`absolute top-1/2 -translate-y-1/2 h-7 rounded-md overflow-hidden shadow-soft ${t.critical ? "ring-2 ring-destructive ring-offset-1 ring-offset-surface-elevated" : ""}`}
+                    style={{ left: `${(t.start / TOTAL_WEEKS) * 100}%`, width: `${(t.dur / TOTAL_WEEKS) * 100}%`, background: color }}
+                  >
+                    <div className="h-full bg-black/30" style={{ width: `${t.progress}%` }} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="grid sm:grid-cols-3 gap-4">
+        <div className="p-5 rounded-xl bg-surface-elevated border border-border shadow-soft">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Tarefas críticas</div>
+          <div className="font-display text-2xl mt-2">{ganttTasks.filter((t) => t.critical).length}</div>
+        </div>
+        <div className="p-5 rounded-xl bg-surface-elevated border border-border shadow-soft">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Progresso médio</div>
+          <div className="font-display text-2xl mt-2">{Math.round(ganttTasks.reduce((a, t) => a + t.progress, 0) / ganttTasks.length)}%</div>
+        </div>
+        <div className="p-5 rounded-xl bg-surface-elevated border border-border shadow-soft">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground">Semanas decorridas</div>
+          <div className="font-display text-2xl mt-2">18 / {TOTAL_WEEKS}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===================== AUDIT LOG =====================
+function AuditLogView() {
+  const entries = useAudit();
+  return (
+    <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
+      <div className="px-5 py-3 border-b border-border flex items-center gap-2">
+        <ScrollText className="size-4 text-accent" />
+        <span className="text-sm">Histórico imutável de alterações deste projecto · {entries.length} entradas</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/60 text-muted-foreground text-xs uppercase tracking-wider">
+            <tr>
+              <th className="px-4 py-3 text-left">Data / Hora</th>
+              <th className="px-4 py-3 text-left">Utilizador</th>
+              <th className="px-4 py-3 text-left">Item</th>
+              <th className="px-4 py-3 text-left">Anterior</th>
+              <th className="px-4 py-3 text-left">Novo</th>
+              <th className="px-4 py-3">Δ%</th>
+              <th className="px-4 py-3 text-left">Justificativa</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {entries.map((e, i) => (
+              <tr key={i} className="hover:bg-muted/30">
+                <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{e.dt}</td>
+                <td className="px-4 py-3">{e.user}</td>
+                <td className="px-4 py-3 font-medium">{e.item}</td>
+                <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{e.from}</td>
+                <td className="px-4 py-3 font-mono text-xs">{e.to}</td>
+                <td className={`px-4 py-3 text-center font-mono ${e.delta > 10 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                  {e.delta > 0 ? `+${e.delta}%` : "—"}
+                </td>
+                <td className="px-4 py-3 text-muted-foreground max-w-sm">{e.just}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ===================== RELATÓRIO =====================
+function RelatorioView({ project, totalActual, totalContracted, deviationPct, exec }: any) {
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <FileText className="size-4" />
+          Relatório técnico compilando todas as secções do projecto
+        </div>
+        <button onClick={() => exportBoQPDF(project.name)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90">
+          <Download className="size-4" /> Gerar PDF
+        </button>
+      </div>
+      <div className="rounded-xl bg-surface-elevated border border-border shadow-soft p-8 max-w-3xl mx-auto">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">SQI — Relatório de obra</div>
+        <h2 className="font-display text-2xl mt-1">{project.name}</h2>
+        <div className="text-sm text-muted-foreground">{project.location} · {project.client}</div>
+
+        <div className="grid sm:grid-cols-3 gap-4 mt-6 pt-6 border-t border-border">
+          <Metric label="Valor contratado" value={fmtMT(totalContracted)} />
+          <Metric label="Valor actual" value={fmtMT(totalActual)} />
+          <Metric label="Desvio" value={`${deviationPct > 0 ? "+" : ""}${deviationPct.toFixed(1)}%`} accent={deviationPct > 0} />
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-border">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Secções incluídas</div>
+          <ul className="text-sm space-y-1.5">
+            {["Resumo executivo", "Vista 3D e progresso por piso", "BoQ por fase com preços actualizados", "Validação estrutural REBAP", "Orçamento consolidado", "Cronograma Gantt", "Audit log completo"].map((s) => (
+              <li key={s} className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-accent" /> {s}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-border">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Resumo executivo</div>
+          <p className="text-sm leading-relaxed">{exec}</p>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-border text-[11px] text-muted-foreground flex justify-between">
+          <span>Hash SHA-256 · 8a3f…d201</span>
+          <span>Gerado por SQI · {new Date().toLocaleDateString("pt-PT")}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Metric({ label, value, accent = false }: any) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className={`font-display text-xl mt-1 ${accent ? "text-destructive" : ""}`}>{value}</div>
+    </div>
+  );
+}
