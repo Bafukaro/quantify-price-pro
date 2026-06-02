@@ -1,17 +1,13 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { boqRows, projects, fmtMT } from "@/data/mock";
-import { Download, FileSpreadsheet, AlertTriangle, Calendar, Bell, TrendingUp, TrendingDown } from "lucide-react";
+import { boqRows, projects, fmtMT, ganttTasks, phaseColors } from "@/data/mock";
+import { Download, FileSpreadsheet, AlertTriangle, Calendar, Bell, TrendingUp, TrendingDown, ShieldCheck, Calculator, FileText, ScrollText, GanttChartSquare, Layers } from "lucide-react";
 import { marketMedian, classifyRisk, RISK_COLOR, RISK_LABEL } from "@/data/priceDb";
-import ProjectTasks from "@/components/dashboard/DailyTasks";
-import { useTasks } from "@/data/store";
+import { useAudit } from "@/data/store";
 import { exportBoQPDF, exportBoQExcel } from "@/lib/exports";
 
 const phases = Object.keys(boqRows) as Array<keyof typeof boqRows>;
-type TabKey = "resumo" | "vista3d" | "tarefas" | (typeof phases)[number];
-
-// Short label used in tasks (e.g. "Estrutura") derived from BoQ key ("Fase 1 — Estrutura")
-const shortPhase = (k: string) => k.split("—").pop()?.trim() ?? k;
+type TabKey = "resumo" | "vista3d" | "fases" | "calculos" | "orcamento" | "cronograma" | "auditlog" | "relatorio";
 
 export default function Project() {
   const { id } = useParams();
@@ -19,19 +15,12 @@ export default function Project() {
   const project = projects.find((p) => p.id === id) ?? projects[0];
   const [active, setActive] = useState<TabKey>("resumo");
   useEffect(() => {
-    const t = params.get("tab");
-    if (t === "tarefas") setActive("tarefas");
-    else if (t === "vista3d") setActive("vista3d");
-    else if (t === "resumo") setActive("resumo");
+    const t = params.get("tab") as TabKey | null;
+    const valid: TabKey[] = ["resumo", "vista3d", "fases", "calculos", "orcamento", "cronograma", "auditlog", "relatorio"];
+    if (t && valid.includes(t)) setActive(t);
   }, [params]);
   const [exec, setExec] = useState("Obra dentro do prazo. Atenção ao desvio do aço A500 (+49%) — renegociar com Forn. B antes da próxima encomenda.");
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
-  const allTasks = useTasks();
-  const projectTasks = allTasks.filter((t) => t.projectId === project.id);
-  const pendingByPhase = (phaseKey: string) =>
-    projectTasks.filter((t) => !t.done && t.phase === shortPhase(phaseKey)).length;
-
-  const isPhase = (k: TabKey): k is (typeof phases)[number] => phases.includes(k as any);
   const ivaPct = 0.17;
   const contPct = 0.10;
 
@@ -75,21 +64,12 @@ export default function Project() {
       <div className="flex flex-wrap gap-1 border-b border-border">
         <TabBtn label="Resumo" active={active === "resumo"} onClick={() => setActive("resumo")} />
         <TabBtn label="Vista 3D" active={active === "vista3d"} onClick={() => setActive("vista3d")} />
-        <TabBtn
-          label="Tarefas"
-          badge={projectTasks.filter((t) => !t.done).length || undefined}
-          active={active === "tarefas"}
-          onClick={() => setActive("tarefas")}
-        />
-        {phases.map((ph) => (
-          <TabBtn
-            key={ph}
-            label={ph}
-            badge={pendingByPhase(ph) || undefined}
-            active={active === ph}
-            onClick={() => setActive(ph)}
-          />
-        ))}
+        <TabBtn label="Fases" active={active === "fases"} onClick={() => setActive("fases")} />
+        <TabBtn label="Cálculos" active={active === "calculos"} onClick={() => setActive("calculos")} />
+        <TabBtn label="Orçamento" active={active === "orcamento"} onClick={() => setActive("orcamento")} />
+        <TabBtn label="Cronograma" active={active === "cronograma"} onClick={() => setActive("cronograma")} />
+        <TabBtn label="Audit Log" active={active === "auditlog"} onClick={() => setActive("auditlog")} />
+        <TabBtn label="Relatório" active={active === "relatorio"} onClick={() => setActive("relatorio")} />
       </div>
 
       {active === "resumo" && (
@@ -178,12 +158,12 @@ export default function Project() {
       )}
 
       {active === "vista3d" && <Vista3D selected={selectedFloor} onSelect={setSelectedFloor} />}
-
-      {active === "tarefas" && (
-        <ProjectTasks projectId={project.id} phases={phases.map(shortPhase)} />
-      )}
-
-      {isPhase(active) && <BoQTable phase={active} ivaPct={ivaPct} contPct={contPct} />}
+      {active === "fases" && <FasesView ivaPct={ivaPct} contPct={contPct} />}
+      {active === "calculos" && <CalculosView />}
+      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} />}
+      {active === "cronograma" && <CronogramaView />}
+      {active === "auditlog" && <AuditLogView />}
+      {active === "relatorio" && <RelatorioView project={project} totalActual={totalActual} totalContracted={totalContracted} deviationPct={deviationPct} exec={exec} />}
     </div>
   );
 }
