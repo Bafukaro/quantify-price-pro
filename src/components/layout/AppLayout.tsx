@@ -37,7 +37,7 @@ export default function AppLayout() {
             <div>
               <div className="font-display text-lg leading-none">SQI</div>
               <div className="text-[10px] uppercase tracking-[0.18em] text-white/60 mt-1">
-                Sistema Quantitativo
+                Sistema Quantitativo Integrado
               </div>
             </div>
           </NavLink>
