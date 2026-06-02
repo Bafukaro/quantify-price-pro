@@ -3,44 +3,20 @@ import {
   LayoutDashboard,
   FolderKanban,
   Database,
-  ScrollText,
-  GanttChartSquare,
   Bell,
   Search,
   Building2,
-  ShieldAlert,
-  Box,
-  ShieldCheck,
-  Workflow as WorkflowIcon,
-  FlaskConical,
-  FileText,
 } from "lucide-react";
 
 const nav = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/app/projecto/p-001", label: "Projecto · BoQ", icon: FolderKanban },
-  { to: "/app/modelo-3d", label: "Modelo 3D / BIM", icon: Box },
   { to: "/app/precos", label: "Base de Preços", icon: Database },
-  { to: "/app/risco", label: "Análise de Risco", icon: ShieldAlert },
-  { to: "/app/compliance", label: "Compliance & Normas", icon: ShieldCheck },
-  { to: "/app/workflow", label: "System Workflow", icon: WorkflowIcon },
-  { to: "/app/caso-estudo", label: "Caso de Estudo", icon: FlaskConical },
-  { to: "/app/relatorios", label: "Relatórios", icon: FileText },
-  { to: "/app/auditoria", label: "Audit Log", icon: ScrollText },
-  { to: "/app/cronograma", label: "Cronograma", icon: GanttChartSquare },
 ];
 
 const titles: Record<string, string> = {
   "/app": "Dashboard — Visão geral dos projectos",
   "/app/precos": "Base de Dados de Preços",
-  "/app/risco": "Análise de Risco — Justificação & Aprovação",
-  "/app/modelo-3d": "Modelo 3D / BIM Viewer",
-  "/app/compliance": "Compliance & Standards — Verificação técnica",
-  "/app/workflow": "System Workflow — Pipeline técnico end-to-end",
-  "/app/caso-estudo": "Caso de Estudo — Pilot Project Polana 12",
-  "/app/relatorios": "Engineering Reports — Exportação técnica",
-  "/app/auditoria": "Audit Log — Registo de Auditoria",
-  "/app/cronograma": "Cronograma — Gantt interactivo",
 };
 
 export default function AppLayout() {
@@ -61,7 +37,7 @@ export default function AppLayout() {
             <div>
               <div className="font-display text-lg leading-none">SQI</div>
               <div className="text-[10px] uppercase tracking-[0.18em] text-white/60 mt-1">
-                Sistema Quantitativo
+                Sistema Quantitativo Integrado
               </div>
             </div>
           </NavLink>
