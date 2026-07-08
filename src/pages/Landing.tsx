@@ -126,7 +126,7 @@ export default function Landing() {
 
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link
-                  to="/app/modelo-3d"
+                  to="/app/modelo-3d?p=p-001"
                   className="inline-flex items-center gap-2 bg-warning text-foreground px-5 py-3 rounded-md font-medium hover:opacity-90 transition shadow-elegant"
                 >
                   <Upload className="size-4" /> Upload project (.ifc / .gltf)
@@ -667,7 +667,7 @@ export default function Landing() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3 justify-center">
             <Link
-              to="/app/modelo-3d"
+              to="/app/modelo-3d?p=p-001"
               className="inline-flex items-center gap-2 bg-warning text-foreground px-5 py-3 rounded-md font-medium hover:opacity-90 transition shadow-elegant"
             >
               <Upload className="size-4" /> Upload project
