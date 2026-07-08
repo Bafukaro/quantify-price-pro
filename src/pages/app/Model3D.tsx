@@ -14,6 +14,8 @@ export default function Model3D() {
   const [uploaded, setUploaded] = useState<{ url: string; ext: "gltf" | "glb" | "obj"; name: string } | null>(null);
   const [meshes, setMeshes] = useState<MeshInfo[]>([]);
   const [overrides, setOverrides] = useState<Record<string, PhaseKey>>({});
+  const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [loadError, setLoadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const togglePhase = (p: Phase3D) => {
@@ -49,6 +51,11 @@ export default function Model3D() {
       alert("Formato não suportado. Use .gltf, .glb ou .obj");
       return;
     }
+    if (f.size === 0) {
+      setLoadError("Ficheiro vazio (0 bytes).");
+      setLoadState("error");
+      return;
+    }
     if (uploaded) URL.revokeObjectURL(uploaded.url);
     const url = URL.createObjectURL(f);
     setUploaded({ url, ext, name: f.name });
@@ -56,6 +63,8 @@ export default function Model3D() {
     setOverrides({});
     setSelected(null);
     setVisible(new Set(ALL));
+    setLoadError(null);
+    setLoadState("loading");
   };
 
   const info = selected ? phase3DInfo[selected] : null;
@@ -129,7 +138,19 @@ export default function Model3D() {
                     selected={selected}
                     visiblePhases={visible}
                     overrides={overrides}
-                    onLoaded={setMeshes}
+                    onLoaded={(m) => {
+                      setMeshes(m);
+                      if (m.length === 0) {
+                        setLoadError("Modelo carregado mas sem geometria (0 meshes).");
+                        setLoadState("error");
+                      } else {
+                        setLoadState("ready");
+                      }
+                    }}
+                    onError={(msg) => {
+                      setLoadError(msg);
+                      setLoadState("error");
+                    }}
                     onSelect={(p) => focusPhase(p)}
                   />
                 ) : (
