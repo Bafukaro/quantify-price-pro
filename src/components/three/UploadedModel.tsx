@@ -76,6 +76,7 @@ export default function UploadedModel({
   overrides,
   onSelect,
   onLoaded,
+  onError,
 }: {
   url: string;
   ext: "gltf" | "glb" | "obj";
@@ -84,6 +85,7 @@ export default function UploadedModel({
   overrides: Record<string, PhaseKey>;
   onSelect: (p: PhaseKey) => void;
   onLoaded?: (meshes: MeshInfo[]) => void;
+  onError?: (msg: string) => void;
 }) {
   const [root, setRoot] = useState<THREE.Object3D | null>(null);
 
@@ -93,20 +95,31 @@ export default function UploadedModel({
       try {
         if (ext === "obj") {
           const loader = new OBJLoader();
-          loader.load(url, (obj) => active && setRoot(obj));
+          loader.load(
+            url,
+            (obj) => active && setRoot(obj),
+            undefined,
+            (err) => active && onError?.(`Falha ao carregar OBJ: ${(err as any)?.message ?? "ficheiro inválido"}`)
+          );
         } else {
           const loader = new GLTFLoader();
-          loader.load(url, (gltf) => active && setRoot(gltf.scene));
+          loader.load(
+            url,
+            (gltf) => active && setRoot(gltf.scene),
+            undefined,
+            (err) => active && onError?.(`Falha ao carregar ${ext.toUpperCase()}: ${(err as any)?.message ?? "ficheiro inválido"}`)
+          );
         }
       } catch (e) {
         console.error("Model load failed", e);
+        onError?.("Erro inesperado ao carregar o modelo.");
       }
     };
     load();
     return () => {
       active = false;
     };
-  }, [url, ext]);
+  }, [url, ext, onError]);
 
   // Tag each mesh with a phase + center & scale model
   const { tagged, meshes } = useMemo(() => {

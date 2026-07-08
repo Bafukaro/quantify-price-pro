@@ -14,6 +14,8 @@ export default function Model3D() {
   const [uploaded, setUploaded] = useState<{ url: string; ext: "gltf" | "glb" | "obj"; name: string } | null>(null);
   const [meshes, setMeshes] = useState<MeshInfo[]>([]);
   const [overrides, setOverrides] = useState<Record<string, PhaseKey>>({});
+  const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [loadError, setLoadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const togglePhase = (p: Phase3D) => {
@@ -49,6 +51,11 @@ export default function Model3D() {
       alert("Formato não suportado. Use .gltf, .glb ou .obj");
       return;
     }
+    if (f.size === 0) {
+      setLoadError("Ficheiro vazio (0 bytes).");
+      setLoadState("error");
+      return;
+    }
     if (uploaded) URL.revokeObjectURL(uploaded.url);
     const url = URL.createObjectURL(f);
     setUploaded({ url, ext, name: f.name });
@@ -56,6 +63,8 @@ export default function Model3D() {
     setOverrides({});
     setSelected(null);
     setVisible(new Set(ALL));
+    setLoadError(null);
+    setLoadState("loading");
   };
 
   const info = selected ? phase3DInfo[selected] : null;
@@ -111,7 +120,30 @@ export default function Model3D() {
       <div className="grid lg:grid-cols-[1fr_340px] gap-6">
         {/* Canvas */}
         <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
-          <div className="h-[560px] bg-gradient-to-b from-[hsl(220_30%_94%)] to-[hsl(220_25%_88%)]">
+          <div className="h-[560px] bg-gradient-to-b from-[hsl(220_30%_94%)] to-[hsl(220_25%_88%)] relative">
+            {uploaded && loadState === "loading" && (
+              <div className="absolute inset-0 z-10 grid place-items-center bg-background/60 backdrop-blur-sm text-sm text-muted-foreground">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="size-6 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+                  A processar {uploaded.name}…
+                </div>
+              </div>
+            )}
+            {loadState === "error" && (
+              <div className="absolute inset-0 z-10 grid place-items-center bg-background/85 p-6">
+                <div className="max-w-sm text-center space-y-3">
+                  <AlertTriangle className="size-8 text-destructive mx-auto" />
+                  <div className="font-medium">Não foi possível abrir o modelo</div>
+                  <div className="text-xs text-muted-foreground">{loadError}</div>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="inline-flex items-center gap-2 border border-border px-3 py-1.5 rounded-md text-xs hover:bg-muted"
+                  >
+                    <Upload className="size-3.5" /> Escolher outro ficheiro
+                  </button>
+                </div>
+              </div>
+            )}
             <Canvas shadows dpr={[1, 2]}>
               <PerspectiveCamera makeDefault position={[18, 14, 22]} fov={42} />
               <ambientLight intensity={0.55} />
@@ -129,7 +161,19 @@ export default function Model3D() {
                     selected={selected}
                     visiblePhases={visible}
                     overrides={overrides}
-                    onLoaded={setMeshes}
+                    onLoaded={(m) => {
+                      setMeshes(m);
+                      if (m.length === 0) {
+                        setLoadError("Modelo carregado mas sem geometria (0 meshes).");
+                        setLoadState("error");
+                      } else {
+                        setLoadState("ready");
+                      }
+                    }}
+                    onError={(msg) => {
+                      setLoadError(msg);
+                      setLoadState("error");
+                    }}
                     onSelect={(p) => focusPhase(p)}
                   />
                 ) : (
