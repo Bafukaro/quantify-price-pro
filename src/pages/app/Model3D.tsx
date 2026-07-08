@@ -120,7 +120,30 @@ export default function Model3D() {
       <div className="grid lg:grid-cols-[1fr_340px] gap-6">
         {/* Canvas */}
         <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
-          <div className="h-[560px] bg-gradient-to-b from-[hsl(220_30%_94%)] to-[hsl(220_25%_88%)]">
+          <div className="h-[560px] bg-gradient-to-b from-[hsl(220_30%_94%)] to-[hsl(220_25%_88%)] relative">
+            {uploaded && loadState === "loading" && (
+              <div className="absolute inset-0 z-10 grid place-items-center bg-background/60 backdrop-blur-sm text-sm text-muted-foreground">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="size-6 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+                  A processar {uploaded.name}…
+                </div>
+              </div>
+            )}
+            {loadState === "error" && (
+              <div className="absolute inset-0 z-10 grid place-items-center bg-background/85 p-6">
+                <div className="max-w-sm text-center space-y-3">
+                  <AlertTriangle className="size-8 text-destructive mx-auto" />
+                  <div className="font-medium">Não foi possível abrir o modelo</div>
+                  <div className="text-xs text-muted-foreground">{loadError}</div>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="inline-flex items-center gap-2 border border-border px-3 py-1.5 rounded-md text-xs hover:bg-muted"
+                  >
+                    <Upload className="size-3.5" /> Escolher outro ficheiro
+                  </button>
+                </div>
+              </div>
+            )}
             <Canvas shadows dpr={[1, 2]}>
               <PerspectiveCamera makeDefault position={[18, 14, 22]} fov={42} />
               <ambientLight intensity={0.55} />
