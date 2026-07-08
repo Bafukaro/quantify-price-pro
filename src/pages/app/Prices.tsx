@@ -4,7 +4,7 @@ import { Plus, Filter, AlertTriangle, TrendingUp, X, Camera, ChevronDown, Buildi
 import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Legend, BarChart, Bar, Cell as RCell } from "recharts";
 import { addQuote, useQuotes } from "@/data/store";
 
-const cats = ["Todos", "Cimento", "Ferro", "PVC", "Eléctrica", "Tintas", "Madeira", "Agregados"];
+const ALL_CATS = ["Cimento", "Ferro", "PVC", "Eléctrica", "Tintas", "Madeira", "Agregados"] as const;
 const months = ["Dez 25", "Jan 26", "Fev 26", "Mar 26", "Abr 26", "Mai 26"];
 
 function genHistory(stats: MaterialStats) {
@@ -27,6 +27,15 @@ export default function Prices() {
   const [fabOpen, setFabOpen] = useState(false);
   const quotes = useQuotes();
   const stats = useMemo(() => allStats(), []);
+  const catCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    stats.forEach((s) => { c[s.material.category] = (c[s.material.category] ?? 0) + 1; });
+    return c;
+  }, [stats]);
+  const availableCats = useMemo(
+    () => ["Todos", ...ALL_CATS.filter((c) => (catCounts[c] ?? 0) > 0)],
+    [catCounts]
+  );
   const filtered = cat === "Todos" ? stats : stats.filter((s) => s.material.category === cat);
 
   return (
@@ -47,7 +56,7 @@ export default function Prices() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
           <Filter className="size-4 text-muted-foreground" />
-          {cats.map((c) => (
+          {availableCats.map((c) => (
             <button
               key={c}
               onClick={() => setCat(c)}
@@ -57,7 +66,7 @@ export default function Prices() {
                   : "border-border text-muted-foreground hover:text-foreground"
               }`}
             >
-              {c}
+              {c}{c !== "Todos" && <span className="ml-1 opacity-60">· {catCounts[c]}</span>}
             </button>
           ))}
         </div>
@@ -67,6 +76,11 @@ export default function Prices() {
       </div>
 
       {/* Table */}
+      {filtered.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+          Sem cotações ainda para <span className="font-medium text-foreground">{cat}</span>. Adicione uma cotação com o botão flutuante <span className="inline-flex align-middle mx-1 size-5 rounded-full bg-primary text-primary-foreground items-center justify-center"><Plus className="size-3" /></span> para começar.
+        </div>
+      ) : (
       <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -124,7 +138,19 @@ export default function Prices() {
                                   <div className="flex items-center gap-2 min-w-0">
                                     {supplier.type === "formal" ? <Building2 className="size-4 text-primary shrink-0" /> : <Store className="size-4 text-warning shrink-0" />}
                                     <div className="min-w-0">
-                                      <div className="text-sm truncate">{supplier.name}</div>
+                                      <div className="text-sm truncate flex items-center gap-1.5">
+                                        <span className="truncate">{supplier.name}</span>
+                                        <span
+                                          className={`shrink-0 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${
+                                            supplier.type === "formal"
+                                              ? "border-primary/30 bg-primary/10 text-primary"
+                                              : "border-warning/30 bg-warning/10 text-warning"
+                                          }`}
+                                          title={supplier.type === "formal" ? "Fornecedor formal — documento / factura" : "Fornecedor informal — preço de loja / mercado"}
+                                        >
+                                          {supplier.type === "formal" ? "Formal · factura" : "Informal · mercado"}
+                                        </span>
+                                      </div>
                                       <div className="text-[10px] text-muted-foreground">{supplier.location} · {quote.date}{quote.invoice ? ` · ${quote.invoice}` : ""}{quote.hasPhoto ? " · 📷" : ""}</div>
                                     </div>
                                   </div>
@@ -185,6 +211,7 @@ export default function Prices() {
           </table>
         </div>
       </div>
+      )}
 
       {/* FAB */}
       <button
