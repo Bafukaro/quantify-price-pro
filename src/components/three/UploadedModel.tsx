@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+import { loadIFC } from "@/lib/ifcLoader";
 import type { PhaseKey } from "./BuildingModel";
 import { PHASE_COLORS } from "./BuildingModel";
 
@@ -79,7 +80,7 @@ export default function UploadedModel({
   onError,
 }: {
   url: string;
-  ext: "gltf" | "glb" | "obj";
+  ext: "gltf" | "glb" | "obj" | "ifc";
   selected: PhaseKey | null;
   visiblePhases: Set<PhaseKey>;
   overrides: Record<string, PhaseKey>;
@@ -101,6 +102,13 @@ export default function UploadedModel({
             undefined,
             (err) => active && onError?.(`Falha ao carregar OBJ: ${(err as any)?.message ?? "ficheiro inválido"}`)
           );
+        } else if (ext === "ifc") {
+          try {
+            const grp = await loadIFC(url);
+            if (active) setRoot(grp);
+          } catch (err: any) {
+            if (active) onError?.(`Falha ao carregar IFC: ${err?.message ?? "ficheiro inválido"}`);
+          }
         } else {
           const loader = new GLTFLoader();
           loader.load(

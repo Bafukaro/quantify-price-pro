@@ -1,19 +1,35 @@
 import { Suspense, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, ContactShadows } from "@react-three/drei";
 import BuildingModel, { PhaseKey, PHASE_COLORS } from "@/components/three/BuildingModel";
 import UploadedModel, { type MeshInfo } from "@/components/three/UploadedModel";
-import { phase3DInfo, fmtMT, type Phase3D } from "@/data/mock";
+import { phase3DInfo, fmtMT, projects, type Phase3D } from "@/data/mock";
+import {
+  useProjectModel,
+  useProjectOverrides,
+  setProjectModel,
+  setProjectModelMeshes,
+  setProjectMeshOverride,
+} from "@/data/store";
 import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle } from "lucide-react";
 
 const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "acabamentos"];
 
-export default function Model3D() {
+type Model3DProps = { projectId?: string };
+
+export default function Model3D({ projectId: projectIdProp }: Model3DProps = {}) {
+  const [params] = useSearchParams();
+  const projectId =
+    projectIdProp ?? params.get("p") ?? params.get("projectId") ?? projects[0]?.id ?? "p-001";
+  const project = projects.find((p) => p.id === projectId) ?? projects[0];
+
+  const uploaded = useProjectModel(projectId);
+  const overrides = useProjectOverrides(projectId) as Record<string, PhaseKey>;
+  const meshes = (uploaded?.meshes ?? []) as MeshInfo[];
+
   const [selected, setSelected] = useState<PhaseKey | null>(null);
   const [visible, setVisible] = useState<Set<Phase3D>>(new Set(ALL));
-  const [uploaded, setUploaded] = useState<{ url: string; ext: "gltf" | "glb" | "obj"; name: string } | null>(null);
-  const [meshes, setMeshes] = useState<MeshInfo[]>([]);
-  const [overrides, setOverrides] = useState<Record<string, PhaseKey>>({});
   const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [loadError, setLoadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -43,12 +59,13 @@ export default function Model3D() {
     const f = e.target.files?.[0];
     if (!f) return;
     const lower = f.name.toLowerCase();
-    let ext: "gltf" | "glb" | "obj" | null = null;
+    let ext: "gltf" | "glb" | "obj" | "ifc" | null = null;
     if (lower.endsWith(".glb")) ext = "glb";
     else if (lower.endsWith(".gltf")) ext = "gltf";
     else if (lower.endsWith(".obj")) ext = "obj";
+    else if (lower.endsWith(".ifc")) ext = "ifc";
     if (!ext) {
-      alert("Formato não suportado. Use .gltf, .glb ou .obj");
+      alert("Formato não suportado. Use .ifc, .gltf, .glb ou .obj");
       return;
     }
     if (f.size === 0) {
@@ -56,11 +73,8 @@ export default function Model3D() {
       setLoadState("error");
       return;
     }
-    if (uploaded) URL.revokeObjectURL(uploaded.url);
     const url = URL.createObjectURL(f);
-    setUploaded({ url, ext, name: f.name });
-    setMeshes([]);
-    setOverrides({});
+    setProjectModel(projectId, { url, ext, name: f.name, size: f.size, meshes: [] });
     setSelected(null);
     setVisible(new Set(ALL));
     setLoadError(null);
@@ -80,15 +94,29 @@ export default function Model3D() {
     return c;
   }, [meshes, overrides]);
 
+  // Derive header stats from real data (loaded meshes when available, else project mock).
+  const modelTitle = uploaded?.name?.replace(/\.[^.]+$/, "") ?? project?.name ?? "Modelo do projecto";
+  const elementCount = meshes.length;
+  const columnCount = counts.pilares;
+  const slabCount = counts.lajes;
+  const totalMeta = uploaded
+    ? `${elementCount} elementos${columnCount ? ` · ${columnCount} pilares` : ""}${
+        slabCount ? ` · ${slabCount} lajes` : ""
+      }`
+    : project?.phase
+    ? `Sem modelo carregado · ${project.phase}`
+    : "Sem modelo carregado";
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="p-6 rounded-xl bg-surface-elevated border border-border shadow-soft">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-              Modelo 3D · {uploaded ? `Carregado: ${uploaded.name}` : "Demonstração procedural (carregue .gltf / .obj)"}
+              Modelo 3D · Projecto {projectId}
+              {uploaded ? ` · ${uploaded.name}` : " · Demonstração procedural (carregue .ifc / .gltf / .obj)"}
             </div>
-            <h2 className="font-display text-3xl mt-1">remake_house_dr_mendes</h2>
+            <h2 className="font-display text-3xl mt-1">{modelTitle}</h2>
             <div className="text-sm text-muted-foreground mt-1">
               Clique numa fase para isolar e ver o custo. Use o rato para orbitar / zoom.
             </div>
@@ -103,7 +131,7 @@ export default function Model3D() {
             <input
               ref={fileRef}
               type="file"
-              accept=".gltf,.glb,.obj"
+              accept=".ifc,.gltf,.glb,.obj"
               onChange={onFile}
               className="hidden"
             />
@@ -111,7 +139,7 @@ export default function Model3D() {
               onClick={() => fileRef.current?.click()}
               className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90"
             >
-              <Upload className="size-4" /> Importar modelo 3D (.gltf / .obj)
+              <Upload className="size-4" /> Importar modelo 3D (.ifc / .gltf / .obj)
             </button>
           </div>
         </div>
@@ -162,7 +190,7 @@ export default function Model3D() {
                     visiblePhases={visible}
                     overrides={overrides}
                     onLoaded={(m) => {
-                      setMeshes(m);
+                      setProjectModelMeshes(projectId, m);
                       if (m.length === 0) {
                         setLoadError("Modelo carregado mas sem geometria (0 meshes).");
                         setLoadState("error");
@@ -197,9 +225,13 @@ export default function Model3D() {
             </Canvas>
           </div>
           <div className="px-4 py-2.5 border-t border-border text-[11px] text-muted-foreground flex items-center gap-4">
-            <span className="flex items-center gap-1.5"><Box className="size-3" /> 18 colunas · 3 pisos · 288 m²/piso</span>
-            <span>·</span>
-            <span>Geometria simplificada extraída do modelo Archicad</span>
+            <span className="flex items-center gap-1.5"><Box className="size-3" /> {totalMeta}</span>
+            {uploaded && (
+              <>
+                <span>·</span>
+                <span>Classificação automática por metadados IFC / geometria</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -298,7 +330,7 @@ export default function Model3D() {
                           <select
                             value={cur}
                             onChange={(e) =>
-                              setOverrides((o) => ({ ...o, [m.id]: e.target.value as PhaseKey }))
+                              setProjectMeshOverride(projectId, m.id, e.target.value as PhaseKey)
                             }
                             className="text-xs border border-border rounded px-1.5 py-1 bg-background"
                           >
