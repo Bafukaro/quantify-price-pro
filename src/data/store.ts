@@ -5,6 +5,7 @@ const TASKS_KEY = "sqi.tasks.v1";
 const QUOTES_KEY = "sqi.quotes.v1";
 const AUDIT_KEY = "sqi.audit.v1";
 const RISK_KEY = "sqi.risk.v1";
+const MODEL_OVERRIDES_KEY = "sqi.modelOverrides.v1";
 
 function loadLS<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -143,6 +144,95 @@ export type RiskCase = {
 let risks: RiskCase[] = loadLS<RiskCase[]>(RISK_KEY, []);
 export function useRisks() {
   return useSyncExternalStore(subscribe, () => risks, () => risks);
+}
+
+// === Per-project uploaded 3D model state ===
+// The blob URL and mesh list are session-only (not persistable), so they live
+// in memory keyed by projectId. Manual phase overrides ARE persisted because
+// they represent user corrections.
+export type UploadedModelPhase =
+  | "fundacao"
+  | "pilares"
+  | "lajes"
+  | "alvenaria"
+  | "cobertura"
+  | "acabamentos";
+
+export type StoredMeshInfo = {
+  id: string;
+  name: string;
+  phase: UploadedModelPhase;
+  confidence: number;
+  reason: string;
+};
+
+export type ProjectModelState = {
+  url: string;
+  ext: "gltf" | "glb" | "obj" | "ifc";
+  name: string;
+  size: number;
+  meshes: StoredMeshInfo[];
+};
+
+const projectModels = new Map<string, ProjectModelState>();
+let projectOverrides: Record<string, Record<string, UploadedModelPhase>> = loadLS(
+  MODEL_OVERRIDES_KEY,
+  {}
+);
+
+const persistOverrides = () => saveLS(MODEL_OVERRIDES_KEY, projectOverrides);
+
+// Snapshot ref bumped on every change so useSyncExternalStore re-renders.
+let modelsSnapshot = { models: projectModels, overrides: projectOverrides, v: 0 };
+const bumpModels = () => {
+  modelsSnapshot = { models: projectModels, overrides: projectOverrides, v: modelsSnapshot.v + 1 };
+  listeners.forEach((l) => l());
+};
+
+export function useProjectModel(projectId: string) {
+  useSyncExternalStore(subscribe, () => modelsSnapshot, () => modelsSnapshot);
+  return projectModels.get(projectId) ?? null;
+}
+
+export function useProjectOverrides(projectId: string) {
+  useSyncExternalStore(subscribe, () => modelsSnapshot, () => modelsSnapshot);
+  return projectOverrides[projectId] ?? {};
+}
+
+export function setProjectModel(projectId: string, state: ProjectModelState | null) {
+  // Revoke stale blob URL if we're replacing/clearing.
+  const prev = projectModels.get(projectId);
+  if (prev && prev.url !== state?.url && prev.url.startsWith("blob:")) {
+    try { URL.revokeObjectURL(prev.url); } catch { /* noop */ }
+  }
+  if (state) projectModels.set(projectId, state);
+  else projectModels.delete(projectId);
+  bumpModels();
+}
+
+export function setProjectModelMeshes(projectId: string, meshes: StoredMeshInfo[]) {
+  const cur = projectModels.get(projectId);
+  if (!cur) return;
+  projectModels.set(projectId, { ...cur, meshes });
+  bumpModels();
+}
+
+export function setProjectMeshOverride(
+  projectId: string,
+  meshId: string,
+  phase: UploadedModelPhase
+) {
+  const cur = projectOverrides[projectId] ?? {};
+  projectOverrides = { ...projectOverrides, [projectId]: { ...cur, [meshId]: phase } };
+  persistOverrides();
+  bumpModels();
+}
+
+export function clearProjectMeshOverrides(projectId: string) {
+  const { [projectId]: _, ...rest } = projectOverrides;
+  projectOverrides = rest;
+  persistOverrides();
+  bumpModels();
 }
 
 export function openRiskCase(c: Omit<RiskCase, "id" | "status" | "createdAt">) {
