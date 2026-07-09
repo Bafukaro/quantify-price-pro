@@ -2,9 +2,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { fmtMT } from "@/data/mock";
 import { AlertTriangle, ArrowUpRight, Plus, Building2, Wallet, ScrollText, Upload, X } from "lucide-react";
-import { useAudit, useProjects, addProject, setProjectModel, useProjectModel, Box3DIndicator } from "@/data/store";
+import { useAudit, useProjects, addProject, setProjectModel, useProjectModel } from "@/data/store";
 
 export default function Dashboard() {
+  const projects = useProjects();
   const totalGerido = projects.reduce((a, p) => a + p.totalMT, 0);
   const totalAlertas = projects.reduce((a, p) => a + p.alerts, 0);
   const audit = useAudit();
