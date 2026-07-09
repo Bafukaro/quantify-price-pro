@@ -1,9 +1,9 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { boqRows, projects, fmtMT, ganttTasks, phaseColors } from "@/data/mock";
+import { boqRows, fmtMT, ganttTasks, phaseColors } from "@/data/mock";
 import { Download, FileSpreadsheet, AlertTriangle, Calendar, Bell, TrendingUp, TrendingDown, ShieldCheck, Calculator, FileText, ScrollText, GanttChartSquare, Layers } from "lucide-react";
 import { marketMedian, classifyRisk, RISK_COLOR, RISK_LABEL } from "@/data/priceDb";
-import { useAudit } from "@/data/store";
+import { useAudit, useProjects } from "@/data/store";
 import { exportBoQPDF, exportBoQExcel } from "@/lib/exports";
 
 const phases = Object.keys(boqRows) as Array<keyof typeof boqRows>;
@@ -12,6 +12,7 @@ type TabKey = "resumo" | "vista3d" | "fases" | "calculos" | "orcamento" | "crono
 export default function Project() {
   const { id } = useParams();
   const [params] = useSearchParams();
+  const projects = useProjects();
   const project = projects.find((p) => p.id === id) ?? projects[0];
   const [active, setActive] = useState<TabKey>("resumo");
   useEffect(() => {

@@ -4,13 +4,14 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, ContactShadows } from "@react-three/drei";
 import BuildingModel, { PhaseKey, PHASE_COLORS } from "@/components/three/BuildingModel";
 import UploadedModel, { type MeshInfo } from "@/components/three/UploadedModel";
-import { phase3DInfo, fmtMT, projects, type Phase3D } from "@/data/mock";
+import { phase3DInfo, fmtMT, type Phase3D } from "@/data/mock";
 import {
   useProjectModel,
   useProjectOverrides,
   setProjectModel,
   setProjectModelMeshes,
   setProjectMeshOverride,
+  useProjects,
 } from "@/data/store";
 import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle } from "lucide-react";
 
@@ -20,6 +21,7 @@ type Model3DProps = { projectId?: string };
 
 export default function Model3D({ projectId: projectIdProp }: Model3DProps = {}) {
   const [params] = useSearchParams();
+  const projects = useProjects();
   const projectId =
     projectIdProp ?? params.get("p") ?? params.get("projectId") ?? projects[0]?.id ?? "p-001";
   const project = projects.find((p) => p.id === projectId) ?? projects[0];
