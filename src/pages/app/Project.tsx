@@ -5,6 +5,7 @@ import { Download, FileSpreadsheet, AlertTriangle, Calendar, Bell, TrendingUp, T
 import { marketMedian, classifyRisk, RISK_COLOR, RISK_LABEL } from "@/data/priceDb";
 import { useAudit, useProjects } from "@/data/store";
 import { exportBoQPDF, exportBoQExcel } from "@/lib/exports";
+import Model3D from "@/pages/app/Model3D";
 
 const phases = Object.keys(boqRows) as Array<keyof typeof boqRows>;
 type TabKey = "resumo" | "vista3d" | "fases" | "calculos" | "orcamento" | "cronograma" | "auditlog" | "relatorio";
@@ -158,7 +159,7 @@ export default function Project() {
         </div>
       )}
 
-      {active === "vista3d" && <Vista3D selected={selectedFloor} onSelect={setSelectedFloor} />}
+      {active === "vista3d" && <Model3D projectId={project.id} />}
       {active === "fases" && <FasesView ivaPct={ivaPct} contPct={contPct} />}
       {active === "calculos" && <CalculosView />}
       {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} />}
