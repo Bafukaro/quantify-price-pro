@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from "react";
-import { auditEntries } from "./mock";
+import { auditEntries, projects as initialProjects } from "./mock";
 
 const TASKS_KEY = "sqi.tasks.v1";
 const QUOTES_KEY = "sqi.quotes.v1";
 const AUDIT_KEY = "sqi.audit.v1";
 const RISK_KEY = "sqi.risk.v1";
 const MODEL_OVERRIDES_KEY = "sqi.modelOverrides.v1";
+const PROJECTS_KEY = "sqi.projects.v1";
 
 function loadLS<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -57,6 +58,7 @@ const persist = () => {
   saveLS(AUDIT_KEY, audit);
   saveLS(QUOTES_KEY, quotes);
   saveLS(RISK_KEY, risks);
+  saveLS(PROJECTS_KEY, projects);
 };
 const emit = () => {
   persist();
@@ -72,6 +74,62 @@ export function useTasks() {
 }
 export function useAudit() {
   return useSyncExternalStore(subscribe, () => audit, () => audit);
+}
+
+// === Projects (reactive, persisted) ===
+export type Project = (typeof initialProjects)[number];
+let projects: Project[] = loadLS<Project[]>(PROJECTS_KEY, initialProjects);
+
+export function useProjects() {
+  return useSyncExternalStore(subscribe, () => projects, () => projects);
+}
+
+export type NewProjectInput = {
+  name: string;
+  client: string;
+  location: string;
+  totalMT?: number;
+  phase?: string;
+  createdBy?: string;
+};
+
+export function addProject(input: NewProjectInput): string {
+  const id = `p-${Date.now()}`;
+  const today = new Date().toISOString().slice(0, 10);
+  const newP: Project = {
+    id,
+    name: input.name,
+    client: input.client || "—",
+    location: input.location || "—",
+    totalMT: input.totalMT ?? 0,
+    spentPct: 0,
+    phase: input.phase ?? "Fase 0 — Preliminares",
+    updatedAt: today,
+    phases: [
+      { name: "Preliminares", pct: 0 },
+      { name: "Estrutura", pct: 0 },
+      { name: "Alvenaria", pct: 0 },
+      { name: "Instalações", pct: 0 },
+      { name: "Acabamentos", pct: 0 },
+      { name: "Exteriores", pct: 0 },
+    ],
+    alerts: 0,
+  };
+  projects = [newP, ...projects];
+  audit = [
+    {
+      dt: nowStamp(),
+      user: input.createdBy || "Cláudia M. (Gestor)",
+      item: "Novo projecto criado",
+      from: "—",
+      to: newP.name,
+      delta: 0,
+      just: `Cliente: ${newP.client} · ${newP.location}`,
+    },
+    ...audit,
+  ];
+  emit();
+  return id;
 }
 
 const nowStamp = () => {
