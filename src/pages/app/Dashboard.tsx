@@ -144,6 +144,38 @@ function Kpi({ icon: Icon, label, value, delta, warn = false }: any) {
 
 function NewProjectModal({ onClose }: { onClose: () => void }) {
   const [file, setFile] = useState<File | null>(null);
+  const [name, setName] = useState("");
+  const [client, setClient] = useState("");
+  const [location, setLocation] = useState("");
+  const [budget, setBudget] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) { setErr("Nome obrigatório."); return; }
+    const id = addProject({
+      name: name.trim(),
+      client: client.trim(),
+      location: location.trim(),
+      totalMT: Number(budget) || 0,
+    });
+    if (file) {
+      const lower = file.name.toLowerCase();
+      let ext: "gltf" | "glb" | "obj" | "ifc" | null = null;
+      if (lower.endsWith(".glb")) ext = "glb";
+      else if (lower.endsWith(".gltf")) ext = "gltf";
+      else if (lower.endsWith(".obj")) ext = "obj";
+      else if (lower.endsWith(".ifc")) ext = "ifc";
+      if (ext && file.size > 0) {
+        const url = URL.createObjectURL(file);
+        setProjectModel(id, { url, ext, name: file.name, size: file.size, meshes: [] });
+      }
+    }
+    onClose();
+    navigate(`/app/projecto/${id}?tab=vista3d`);
+  };
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
       <div className="bg-surface-elevated rounded-xl shadow-elegant w-full max-w-lg border border-border">
@@ -151,32 +183,30 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
           <h3 className="font-display text-xl">Novo projecto</h3>
           <button onClick={onClose} className="p-1 rounded-md hover:bg-muted"><X className="size-4" /></button>
         </div>
-        <form
-          onSubmit={(e) => { e.preventDefault(); onClose(); }}
-          className="p-6 space-y-4"
-        >
-          <Field label="Nome do projecto" placeholder="Ex: Edifício Residencial XYZ" />
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <Field label="Nome do projecto" placeholder="Ex: Edifício Residencial XYZ" value={name} onChange={(e:any)=>setName(e.target.value)} />
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="Cliente" placeholder="Empresa / instituição" />
-            <Field label="Localização" placeholder="Cidade · Bairro" />
+            <Field label="Cliente" placeholder="Empresa / instituição" value={client} onChange={(e:any)=>setClient(e.target.value)} />
+            <Field label="Localização" placeholder="Cidade · Bairro" value={location} onChange={(e:any)=>setLocation(e.target.value)} />
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <SelectField label="Tipo de estrutura" options={["Betão armado", "Estrutura metálica", "Mista", "Alvenaria estrutural"]} />
-            <Field label="Área construída (m²)" type="number" placeholder="0" />
+            <Field label="Orçamento estimado (MT)" type="number" placeholder="0" value={budget} onChange={(e:any)=>setBudget(e.target.value)} />
           </div>
           <div>
-            <label className="text-xs uppercase tracking-wider text-muted-foreground">Ficheiro IFC / PDF</label>
+            <label className="text-xs uppercase tracking-wider text-muted-foreground">Modelo 3D (.ifc / .gltf / .glb / .obj)</label>
             <label className="mt-2 flex items-center justify-center gap-2 px-4 py-6 rounded-md border-2 border-dashed border-border bg-muted/30 hover:bg-muted/50 cursor-pointer text-sm text-muted-foreground transition">
               <Upload className="size-4" />
-              {file ? file.name : "Carregar modelo IFC ou desenho PDF"}
+              {file ? `${file.name} (${(file.size/1024).toFixed(0)} KB)` : "Carregar modelo IFC / GLTF / OBJ (opcional)"}
               <input
                 type="file"
-                accept=".ifc,.pdf,.gltf,.glb,.obj"
+                accept=".ifc,.gltf,.glb,.obj"
                 className="hidden"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
             </label>
           </div>
+          {err && <div className="text-xs text-destructive">{err}</div>}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted">
               Cancelar
