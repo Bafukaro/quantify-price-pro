@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { fmtMT } from "@/data/mock";
-import { AlertTriangle, ArrowUpRight, Plus, Building2, Wallet, ScrollText, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Plus, Building2, Wallet, ScrollText, Upload, X, Box } from "lucide-react";
 import { useAudit, useProjects, addProject, setProjectModel, useProjectModel } from "@/data/store";
 
 export default function Dashboard() {
@@ -60,7 +60,10 @@ export default function Dashboard() {
                 </h3>
                 <div className="text-sm text-muted-foreground mt-1">{p.client}</div>
               </div>
-              <ArrowUpRight className="size-5 text-muted-foreground group-hover:text-accent transition" />
+              <div className="flex items-center gap-2">
+                <ModelBadge projectId={p.id} />
+                <ArrowUpRight className="size-5 text-muted-foreground group-hover:text-accent transition" />
+              </div>
             </div>
 
             <div className="mt-5 flex items-end justify-between">
@@ -110,6 +113,19 @@ export default function Dashboard() {
 
       {modalOpen && <NewProjectModal onClose={() => setModalOpen(false)} />}
     </div>
+  );
+}
+
+function ModelBadge({ projectId }: { projectId: string }) {
+  const m = useProjectModel(projectId);
+  if (!m) return null;
+  return (
+    <span
+      title={`Modelo 3D carregado · ${m.name}`}
+      className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent/10 text-accent uppercase tracking-wider"
+    >
+      <Box className="size-3" /> 3D
+    </span>
   );
 }
 
