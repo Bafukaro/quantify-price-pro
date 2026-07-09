@@ -1,8 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { projects, fmtMT } from "@/data/mock";
+import { fmtMT } from "@/data/mock";
 import { AlertTriangle, ArrowUpRight, Plus, Building2, Wallet, ScrollText, Upload, X } from "lucide-react";
-import { useAudit } from "@/data/store";
+import { useAudit, useProjects, addProject, setProjectModel, useProjectModel, Box3DIndicator } from "@/data/store";
 
 export default function Dashboard() {
   const totalGerido = projects.reduce((a, p) => a + p.totalMT, 0);
