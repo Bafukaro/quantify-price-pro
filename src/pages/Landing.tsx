@@ -1,7 +1,7 @@
 import { Suspense, useState } from "react";
 import { Link } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, PerspectiveCamera, ContactShadows, Environment } from "@react-three/drei";
+import { OrbitControls, PerspectiveCamera, ContactShadows } from "@react-three/drei";
 import BuildingModel, { PhaseKey, PHASE_COLORS } from "@/components/three/BuildingModel";
 import {
   ResponsiveContainer,
@@ -168,7 +168,7 @@ export default function Landing() {
                     shadow-mapSize-height={1024}
                   />
                   <Suspense fallback={null}>
-                    <Environment preset="city" />
+                    <hemisphereLight args={["#ffffff", "#334155", 0.8]} />
                     <BuildingModel
                       selected={selected}
                       onSelect={(p) => setSelected((s) => (s === p ? null : p))}
