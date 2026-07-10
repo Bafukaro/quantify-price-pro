@@ -90,6 +90,26 @@ export default function UploadedModel({
 }) {
   const [root, setRoot] = useState<THREE.Object3D | null>(null);
 
+  // Dispose helper: walk a Three.js subtree and free geometries + materials.
+  const disposeSubtree = (obj: THREE.Object3D | null) => {
+    if (!obj) return;
+    obj.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.geometry?.dispose?.();
+      const mats = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
+      mats.forEach((m) => {
+        const sm = m as THREE.MeshStandardMaterial;
+        // free any textures the material references
+        (["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap"] as const).forEach((k) => {
+          const tex = (sm as any)[k];
+          if (tex && typeof tex.dispose === "function") tex.dispose();
+        });
+        m.dispose?.();
+      });
+    });
+  };
+
   useEffect(() => {
     let active = true;
     const load = async () => {
@@ -106,6 +126,7 @@ export default function UploadedModel({
           try {
             const grp = await loadIFC(url);
             if (active) setRoot(grp);
+            else disposeSubtree(grp);
           } catch (err: any) {
             if (active) onError?.(`Falha ao carregar IFC: ${err?.message ?? "ficheiro inválido"}`);
           }
@@ -128,6 +149,13 @@ export default function UploadedModel({
       active = false;
     };
   }, [url, ext, onError]);
+
+  // Whenever `root` is replaced OR the component unmounts, dispose the previous
+  // scene tree. Without this, every re-upload / project switch leaks GPU
+  // memory for the previous IFC model and eventually crashes the tab.
+  useEffect(() => {
+    return () => disposeSubtree(root);
+  }, [root]);
 
   // Tag each mesh with a phase + center & scale model
   const { tagged, meshes } = useMemo(() => {
