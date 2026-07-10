@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 // Cache the initialized IfcAPI across calls to avoid re-instantiating WASM.
 let ifcApiPromise: Promise<any> | null = null;
@@ -24,11 +25,24 @@ async function getIfcApi() {
  */
 export async function loadIFC(url: string): Promise<THREE.Group> {
   const api = await getIfcApi();
-  const buf = await fetch(url).then((r) => r.arrayBuffer());
-  const modelID: number = api.OpenModel(new Uint8Array(buf));
+  let buf: ArrayBuffer | null = await fetch(url).then((r) => r.arrayBuffer());
+  let bytes: Uint8Array | null = new Uint8Array(buf);
+  const modelID: number = api.OpenModel(bytes);
+  // Release raw file bytes as soon as web-ifc has parsed them.
+  bytes = null;
+  buf = null;
 
   const group = new THREE.Group();
   group.name = "IFCModel";
+
+  // Bucket per-element geometries by IFC class so we can merge each bucket into
+  // ONE mesh. Real IFC files have 800+ elements — one Three.js mesh per element
+  // (with its own material) blows up GPU + JS memory. Merging cuts draw calls
+  // dramatically and lets us dispose per-element geometries after merge.
+  const buckets = new Map<
+    string,
+    { geoms: THREE.BufferGeometry[]; color: THREE.Color; opacity: number }
+  >();
 
   api.StreamAllMeshes(modelID, (flatMesh: any) => {
     const expressID = flatMesh.expressID;
@@ -73,24 +87,19 @@ export async function loadIFC(url: string): Promise<THREE.Group> {
       bufGeom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
       bufGeom.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
       bufGeom.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
+      bufGeom.applyMatrix4(new THREE.Matrix4().fromArray(placed.flatTransformation));
 
       const color = placed.color;
-      const material = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(color.x, color.y, color.z),
-        transparent: color.w < 1,
-        opacity: color.w,
-        side: THREE.DoubleSide,
-        metalness: 0.05,
-        roughness: 0.85,
-      });
-
-      const mesh = new THREE.Mesh(bufGeom, material);
-      mesh.applyMatrix4(new THREE.Matrix4().fromArray(placed.flatTransformation));
-      // IFC is Z-up; convert to Y-up so it sits correctly next to gltf/obj models.
-      // We apply the rotation on the mesh itself so the group bounding box is correct.
-      mesh.name = `${ifcClass}_${expressID}`;
-      mesh.userData = { ifcClass, expressID };
-      group.add(mesh);
+      let bucket = buckets.get(ifcClass);
+      if (!bucket) {
+        bucket = {
+          geoms: [],
+          color: new THREE.Color(color.x, color.y, color.z),
+          opacity: color.w,
+        };
+        buckets.set(ifcClass, bucket);
+      }
+      bucket.geoms.push(bufGeom);
 
       geom.delete?.();
     }
@@ -98,6 +107,35 @@ export async function loadIFC(url: string): Promise<THREE.Group> {
   });
 
   api.CloseModel(modelID);
+
+  // Merge each bucket → one mesh per IFC class. Mesh name = IFC class so the
+  // downstream classifier in UploadedModel maps it straight to a phase.
+  buckets.forEach((bucket, ifcClass) => {
+    if (bucket.geoms.length === 0) return;
+    let merged: THREE.BufferGeometry | null = null;
+    try {
+      merged = mergeGeometries(bucket.geoms, false);
+    } catch {
+      merged = null;
+    }
+    // Free per-element geometries now that they're merged (or failed).
+    bucket.geoms.forEach((g) => g.dispose());
+    bucket.geoms.length = 0;
+    if (!merged) return;
+
+    const material = new THREE.MeshStandardMaterial({
+      color: bucket.color,
+      transparent: bucket.opacity < 1,
+      opacity: bucket.opacity,
+      side: THREE.DoubleSide,
+      metalness: 0.05,
+      roughness: 0.85,
+    });
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.name = ifcClass;
+    mesh.userData = { ifcClass };
+    group.add(mesh);
+  });
 
   // Rotate whole model from IFC Z-up → three.js Y-up.
   group.rotation.x = -Math.PI / 2;
