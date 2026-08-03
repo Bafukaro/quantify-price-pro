@@ -4,6 +4,8 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, ContactShadows } from "@react-three/drei";
 import BuildingModel, { PhaseKey, PHASE_COLORS } from "@/components/three/BuildingModel";
 import UploadedModel, { type MeshInfo } from "@/components/three/UploadedModel";
+import SceneErrorBoundary from "@/components/three/SceneErrorBoundary";
+import SafeEnvironment, { LocalLightRig } from "@/components/three/SafeEnvironment";
 import { phase3DInfo, fmtMT, type Phase3D } from "@/data/mock";
 import {
   useProjectModel,
@@ -34,6 +36,8 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
   const [visible, setVisible] = useState<Set<Phase3D>>(new Set(ALL));
   const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [hdrEnabled, setHdrEnabled] = useState(false);
+  const [sceneWarning, setSceneWarning] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const togglePhase = (p: Phase3D) => {
@@ -152,13 +156,29 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
         <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
           <div className="h-[560px] bg-gradient-to-b from-[hsl(220_30%_94%)] to-[hsl(220_25%_88%)] relative">
             {uploaded && loadState === "loading" && (
-              <div className="absolute inset-0 z-10 grid place-items-center bg-background/60 backdrop-blur-sm text-sm text-muted-foreground">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="size-6 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-                  A processar {uploaded.name}…
-                </div>
+              <div className="absolute top-4 left-4 z-10 pointer-events-none flex items-center gap-2 rounded-md bg-background/80 backdrop-blur border border-border px-3 py-1.5 text-xs text-muted-foreground shadow-soft">
+                <div className="size-3.5 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+                A processar {uploaded.name}…
               </div>
             )}
+            <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-1.5">
+              <button
+                onClick={() => setHdrEnabled((v) => !v)}
+                className={`rounded-md border px-2.5 py-1.5 text-[11px] font-medium backdrop-blur transition ${
+                  hdrEnabled
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background/80 text-muted-foreground border-border hover:bg-muted"
+                }`}
+                title="Ambiente HDR remoto (opcional, requer rede)"
+              >
+                HDR remoto: {hdrEnabled ? "ligado" : "desligado"}
+              </button>
+              {sceneWarning && (
+                <span className="rounded-md bg-background/80 backdrop-blur border border-border px-2 py-1 text-[10px] text-muted-foreground max-w-[220px] text-right">
+                  Ambiente HDR indisponível — luz local activa.
+                </span>
+              )}
+            </div>
             {loadState === "error" && (
               <div className="absolute inset-0 z-10 grid place-items-center bg-background/85 p-6">
                 <div className="max-w-sm text-center space-y-3">
@@ -176,13 +196,12 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
             )}
             <Canvas shadows dpr={[1, 2]}>
               <PerspectiveCamera makeDefault position={[18, 14, 22]} fov={42} />
-              <ambientLight intensity={0.55} />
-              <directionalLight
-                position={[12, 18, 8]}
-                intensity={1.1}
-                castShadow
-                shadow-mapSize={[1024, 1024]}
+              <LocalLightRig />
+              <SafeEnvironment
+                enabled={hdrEnabled}
+                onError={(m) => setSceneWarning(m)}
               />
+              <SceneErrorBoundary onError={(m) => setSceneWarning(m)}>
               <Suspense fallback={null}>
                 {uploaded ? (
                   <UploadedModel
@@ -214,9 +233,8 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                   />
                 )}
                 <ContactShadows position={[0, -0.79, 0]} opacity={0.35} blur={2.5} far={20} />
-                <hemisphereLight args={["#ffffff", "#444466", 0.9]} />
-                <directionalLight position={[10, 15, 8]} intensity={0.9} />
               </Suspense>
+              </SceneErrorBoundary>
               <OrbitControls
                 enablePan
                 target={[0, 4, 0]}
