@@ -2,6 +2,8 @@ import { Suspense, useState } from "react";
 import { Link } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, ContactShadows } from "@react-three/drei";
+import SceneErrorBoundary from "@/components/three/SceneErrorBoundary";
+import { LocalLightRig } from "@/components/three/SafeEnvironment";
 import BuildingModel, { PhaseKey, PHASE_COLORS } from "@/components/three/BuildingModel";
 import {
   ResponsiveContainer,
@@ -159,16 +161,9 @@ export default function Landing() {
               <div className="relative h-[460px] md:h-[540px] rounded-2xl overflow-hidden border border-white/15 bg-[hsl(224_55%_8%)] shadow-elegant">
                 <Canvas shadows dpr={[1, 2]}>
                   <PerspectiveCamera makeDefault position={[16, 12, 18]} fov={42} />
-                  <ambientLight intensity={0.55} />
-                  <directionalLight
-                    position={[10, 14, 6]}
-                    intensity={1.1}
-                    castShadow
-                    shadow-mapSize-width={1024}
-                    shadow-mapSize-height={1024}
-                  />
+                  <LocalLightRig />
+                  <SceneErrorBoundary>
                   <Suspense fallback={null}>
-                    <hemisphereLight args={["#ffffff", "#334155", 0.8]} />
                     <BuildingModel
                       selected={selected}
                       onSelect={(p) => setSelected((s) => (s === p ? null : p))}
@@ -182,6 +177,7 @@ export default function Landing() {
                       far={20}
                     />
                   </Suspense>
+                  </SceneErrorBoundary>
                   <OrbitControls
                     enablePan={false}
                     minDistance={14}
