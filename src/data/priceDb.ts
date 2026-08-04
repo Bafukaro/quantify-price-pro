@@ -147,6 +147,12 @@ export const suppliers: Supplier[] = [...baseSuppliers, ...importedSuppliers];
 export const materials: Material[] = [...baseMaterials, ...importedMaterials];
 
 /** Mediana das cotações de um material restrita a uma cidade/região. */
+let activeCity: string | undefined;
+/** Define a cidade/região activa (ex.: localização do projecto) usada por marketMedian. */
+export function setPriceCity(city?: string) {
+  activeCity = city;
+}
+
 export function marketMedianForCity(materialId: string, city?: string): number {
   const m = materials.find((x) => x.id === materialId);
   if (!m) return 0;
