@@ -245,5 +245,5 @@ export function allStats(): MaterialStats[] {
 }
 
 export function marketMedian(materialId: string): number {
-  return getStats(materialId)?.median ?? 0;
+  return marketMedianForCity(materialId, activeCity);
 }
