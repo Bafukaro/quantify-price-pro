@@ -2,7 +2,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { boqRows, fmtMT, ganttTasks, phaseColors } from "@/data/mock";
 import { Download, FileSpreadsheet, AlertTriangle, Calendar, Bell, TrendingUp, TrendingDown, ShieldCheck, Calculator, FileText, ScrollText, GanttChartSquare, Layers } from "lucide-react";
-import { marketMedian, classifyRisk, RISK_COLOR, RISK_LABEL } from "@/data/priceDb";
+import { marketMedian, classifyRisk, RISK_COLOR, RISK_LABEL, setPriceCity } from "@/data/priceDb";
 import { useAudit, useProjects } from "@/data/store";
 import { exportBoQPDF, exportBoQExcel } from "@/lib/exports";
 import Model3D from "@/pages/app/Model3D";
@@ -15,6 +15,8 @@ export default function Project() {
   const [params] = useSearchParams();
   const projects = useProjects();
   const project = projects.find((p) => p.id === id) ?? projects[0];
+  // Preços resolvidos pela localização do projecto (Maputo vs Lichinga, etc.)
+  setPriceCity(project?.location);
   const [active, setActive] = useState<TabKey>("resumo");
   useEffect(() => {
     const t = params.get("tab") as TabKey | null;
