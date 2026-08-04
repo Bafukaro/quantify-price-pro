@@ -143,6 +143,22 @@ const baseMaterials: Material[] = [
 ];
 
 // === Statistics ===
+export const suppliers: Supplier[] = [...baseSuppliers, ...importedSuppliers];
+export const materials: Material[] = [...baseMaterials, ...importedMaterials];
+
+/** Mediana das cotações de um material restrita a uma cidade/região. */
+export function marketMedianForCity(materialId: string, city?: string): number {
+  const m = materials.find((x) => x.id === materialId);
+  if (!m) return 0;
+  if (!city) return median(m.quotes.map((q) => q.price));
+  const norm = (s: string) => s.toLowerCase();
+  const local = m.quotes.filter((q) => {
+    const qCity = q.city ?? suppliers.find((s) => s.id === q.supplierId)?.location ?? "";
+    return norm(qCity).includes(norm(city)) || norm(city).includes(norm(qCity));
+  });
+  return median((local.length ? local : m.quotes).map((q) => q.price));
+}
+
 export function median(values: number[]): number {
   if (!values.length) return 0;
   const s = [...values].sort((a, b) => a - b);
