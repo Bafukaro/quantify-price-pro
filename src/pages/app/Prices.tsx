@@ -4,7 +4,6 @@ import { Plus, Filter, AlertTriangle, TrendingUp, X, Camera, ChevronDown, Buildi
 import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Legend, BarChart, Bar, Cell as RCell } from "recharts";
 import { addQuote, useQuotes } from "@/data/store";
 
-const ALL_CATS = ["Cimento", "Ferro", "PVC", "Eléctrica", "Tintas", "Madeira", "Agregados"] as const;
 const months = ["Dez 25", "Jan 26", "Fev 26", "Mar 26", "Abr 26", "Mai 26"];
 
 function genHistory(stats: MaterialStats) {
@@ -33,7 +32,7 @@ export default function Prices() {
     return c;
   }, [stats]);
   const availableCats = useMemo(
-    () => ["Todos", ...ALL_CATS.filter((c) => (catCounts[c] ?? 0) > 0)],
+    () => ["Todos", ...Object.keys(catCounts).sort((a, b) => a.localeCompare(b, "pt"))],
     [catCounts]
   );
   const filtered = cat === "Todos" ? stats : stats.filter((s) => s.material.category === cat);
@@ -133,8 +132,8 @@ export default function Prices() {
                           <div>
                             <div className="text-sm font-medium mb-2">Cotações por fornecedor (formal vs informal)</div>
                             <div className="grid sm:grid-cols-2 gap-2">
-                              {s.byQuote.map(({ quote, supplier, deviationPct, risk }) => (
-                                <div key={supplier.id} className="flex items-center justify-between p-2.5 rounded-md bg-background border border-border">
+                              {s.byQuote.map(({ quote, supplier, deviationPct, risk }, qi) => (
+                                <div key={`${supplier.id}-${qi}`} className="flex items-center justify-between p-2.5 rounded-md bg-background border border-border">
                                   <div className="flex items-center gap-2 min-w-0">
                                     {supplier.type === "formal" ? <Building2 className="size-4 text-primary shrink-0" /> : <Store className="size-4 text-warning shrink-0" />}
                                     <div className="min-w-0">
@@ -151,7 +150,7 @@ export default function Prices() {
                                           {supplier.type === "formal" ? "Formal · factura" : "Informal · mercado"}
                                         </span>
                                       </div>
-                                      <div className="text-[10px] text-muted-foreground">{supplier.location} · {quote.date}{quote.invoice ? ` · ${quote.invoice}` : ""}{quote.hasPhoto ? " · 📷" : ""}</div>
+                                      <div className="text-[10px] text-muted-foreground">{quote.city ?? supplier.location} · {quote.date}{quote.note ? ` · ${quote.note}` : ""}{quote.invoice ? ` · ${quote.invoice}` : ""}{quote.hasPhoto ? " · 📷" : ""}</div>
                                     </div>
                                   </div>
                                   <div className="text-right shrink-0 ml-3">
@@ -194,8 +193,8 @@ export default function Prices() {
                                   <Tooltip contentStyle={{ background: "hsl(var(--surface-elevated))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }} />
                                   <Legend wrapperStyle={{ fontSize: 11 }} />
                                   <ReferenceLine y={s.median} stroke="hsl(var(--accent))" strokeDasharray="4 4" label={{ value: "Mediana", fontSize: 10, fill: "hsl(var(--accent))" }} />
-                                  {s.byQuote.map((q, i) => (
-                                    <Line key={q.supplier.id} type="monotone" dataKey={q.supplier.name} stroke={SUPPLIER_COLORS[i % SUPPLIER_COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} />
+                                  {[...new Set(s.byQuote.map((q) => q.supplier.name))].map((name, i) => (
+                                    <Line key={name} type="monotone" dataKey={name} stroke={SUPPLIER_COLORS[i % SUPPLIER_COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} />
                                   ))}
                                 </LineChart>
                               </ResponsiveContainer>

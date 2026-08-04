@@ -4,6 +4,8 @@
 
 export type SourceType = "formal" | "informal";
 
+import { importedMaterials, importedSuppliers } from "./importedPrices";
+
 export type Supplier = {
   id: string;
   name: string;
@@ -18,17 +20,19 @@ export type Quote = {
   date: string; // ISO YYYY-MM-DD
   invoice?: string;
   hasPhoto?: boolean;
+  city?: string; // cidade/região da cotação (Maputo, Lichinga, ...)
+  note?: string; // marca / fonte do preço
 };
 
 export type Material = {
   id: string;
   name: string;
   unit: string;
-  category: "Cimento" | "Ferro" | "PVC" | "Eléctrica" | "Tintas" | "Madeira" | "Agregados";
+  category: string;
   quotes: Quote[];
 };
 
-export const suppliers: Supplier[] = [
+const baseSuppliers: Supplier[] = [
   { id: "s-cimentos-mz", name: "Cimentos de Moçambique", type: "formal", location: "Matola", rating: 4.6 },
   { id: "s-construmac", name: "ConstruMac SA", type: "formal", location: "Maputo · Baixa", rating: 4.3 },
   { id: "s-acobeira", name: "AçoBeira Lda.", type: "formal", location: "Beira", rating: 4.1 },
@@ -41,7 +45,7 @@ export const suppliers: Supplier[] = [
   { id: "s-ambulante-matola", name: "Ambulante Matola Gare", type: "informal", location: "Matola Gare", rating: 2.7 },
 ];
 
-export const materials: Material[] = [
+const baseMaterials: Material[] = [
   {
     id: "m-cimento-425",
     name: "Cimento Portland 42.5 (saco 50kg)",
@@ -139,6 +143,28 @@ export const materials: Material[] = [
 ];
 
 // === Statistics ===
+export const suppliers: Supplier[] = [...baseSuppliers, ...importedSuppliers];
+export const materials: Material[] = [...baseMaterials, ...importedMaterials];
+
+/** Mediana das cotações de um material restrita a uma cidade/região. */
+let activeCity: string | undefined;
+/** Define a cidade/região activa (ex.: localização do projecto) usada por marketMedian. */
+export function setPriceCity(city?: string) {
+  activeCity = city;
+}
+
+export function marketMedianForCity(materialId: string, city?: string): number {
+  const m = materials.find((x) => x.id === materialId);
+  if (!m) return 0;
+  if (!city) return median(m.quotes.map((q) => q.price));
+  const norm = (s: string) => s.toLowerCase();
+  const local = m.quotes.filter((q) => {
+    const qCity = q.city ?? suppliers.find((s) => s.id === q.supplierId)?.location ?? "";
+    return norm(qCity).includes(norm(city)) || norm(city).includes(norm(qCity));
+  });
+  return median((local.length ? local : m.quotes).map((q) => q.price));
+}
+
 export function median(values: number[]): number {
   if (!values.length) return 0;
   const s = [...values].sort((a, b) => a - b);
@@ -225,5 +251,5 @@ export function allStats(): MaterialStats[] {
 }
 
 export function marketMedian(materialId: string): number {
-  return getStats(materialId)?.median ?? 0;
+  return marketMedianForCity(materialId, activeCity);
 }
