@@ -127,7 +127,10 @@ export async function loadIFC(url: string): Promise<THREE.Group> {
     // Free per-element geometries now that they're merged (or failed).
     bucket.geoms.forEach((g) => g.dispose());
     bucket.geoms.length = 0;
-    if (!merged) return;
+    if (!merged) {
+      invalidElements += bucket.elements.size;
+      return;
+    }
 
     const material = new THREE.MeshStandardMaterial({
       color: bucket.color,
