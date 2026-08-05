@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { loadIFC } from "@/lib/ifcLoader";
+import { computeMeshQuantity } from "@/lib/meshQuantities";
 import type { PhaseKey } from "./BuildingModel";
 import { PHASE_COLORS } from "./BuildingModel";
 
@@ -67,7 +68,21 @@ function classifyByGeometry(mesh: THREE.Mesh, modelBox: THREE.Box3): Classificat
   return { phase: "acabamentos", confidence: 0.2, reason: "fallback" };
 }
 
-export type MeshInfo = { id: string; name: string; phase: PhaseKey; confidence: number; reason: string };
+export type MeshInfo = {
+  id: string;
+  name: string;
+  phase: PhaseKey;
+  confidence: number;
+  reason: string;
+  /** Volume real (m³) calculado a partir da malha, em unidades do ficheiro. */
+  volumeM3: number;
+  /** Área de superfície real (m²) calculada a partir da malha. */
+  areaM2: number;
+  /** Nº de elementos IFC representados (1 para GLTF/OBJ; N para malha fundida por classe). */
+  elementCount: number;
+  /** false quando a geometria não permite calcular volume/área. */
+  valid: boolean;
+};
 
 export default function UploadedModel({
   url,
@@ -162,6 +177,15 @@ export default function UploadedModel({
     const meshes: MeshInfo[] = [];
     if (!root) return { tagged: null, meshes };
 
+    // 1) Quantidades REAIS — calculadas nas unidades originais do ficheiro,
+    //    antes de qualquer re-escala de visualização.
+    root.updateMatrixWorld(true);
+    root.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      (mesh.userData as any).qty = computeMeshQuantity(mesh);
+    });
+
     // Center + uniform scale to ~10 units max dimension
     const box = new THREE.Box3().setFromObject(root);
     const size = new THREE.Vector3();
@@ -188,12 +212,17 @@ export default function UploadedModel({
           classifyByGeometry(mesh, worldBox);
         (mesh.userData as any).phase = cls.phase;
         (mesh.userData as any).meshId = mesh.uuid;
+        const q = (mesh.userData as any).qty ?? { volumeM3: 0, areaM2: 0, valid: false };
         meshes.push({
           id: mesh.uuid,
           name: mesh.name || mesh.parent?.name || `mesh_${i}`,
           phase: cls.phase,
           confidence: cls.confidence,
           reason: cls.reason,
+          volumeM3: q.volumeM3,
+          areaM2: q.areaM2,
+          elementCount: ((mesh.userData as any).elementCount as number) ?? 1,
+          valid: !!q.valid,
         });
         // Clone material so we can mutate per-mesh
         if (Array.isArray(mesh.material)) {
