@@ -415,7 +415,7 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
               Decomposição — <span className="text-accent">{info.label}</span>
             </div>
             <div className="text-xs text-muted-foreground">
-              {info.items.length} linhas · valores em MT
+              {info.lines.length} linhas · valores em MT
             </div>
           </div>
           <table className="w-full text-sm">
@@ -430,13 +430,17 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {info.items.map((i) => (
+              {info.lines.map((i) => (
                 <tr key={i.item} className="hover:bg-muted/30">
                   <td className="px-4 py-2.5 font-mono">{i.item}</td>
                   <td className="px-4 py-2.5">{i.desc}</td>
                   <td className="px-4 py-2.5 text-right text-muted-foreground">{i.un}</td>
-                  <td className="px-4 py-2.5 text-right font-mono">{i.qty.toLocaleString("pt-PT")}</td>
-                  <td className="px-4 py-2.5 text-right font-mono">{i.preco.toLocaleString("pt-PT")}</td>
+                  <td className="px-4 py-2.5 text-right font-mono">
+                    {i.qty.toLocaleString("pt-PT", { maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono">
+                    {i.priced ? i.preco.toLocaleString("pt-PT") : <span className="text-warning">sem preço</span>}
+                  </td>
                   <td className="px-4 py-2.5 text-right font-mono font-medium">
                     {(i.qty * i.preco).toLocaleString("pt-PT")}
                   </td>
