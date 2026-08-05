@@ -292,6 +292,22 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
             <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground flex items-center gap-1.5">
               <Layers className="size-3" /> Fases construtivas
             </div>
+            <div className="mt-2 text-[10px] leading-snug">
+              {hasReal ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 text-success px-2 py-0.5">
+                  Quantidades extraídas do ficheiro ({extraction.elementsTotal} elementos)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 text-warning px-2 py-0.5">
+                  Sem modelo carregado — valores de caso de estudo
+                </span>
+              )}
+              {hasReal && extraction.invalidTotal > 0 && (
+                <div className="mt-1.5 text-warning">
+                  Quantidade não determinada para {extraction.invalidTotal} elementos (geometria inválida).
+                </div>
+              )}
+            </div>
             <div className="mt-3 space-y-1.5">
               {ALL.map((p) => {
                 const pd = phaseData[p];
@@ -349,8 +365,22 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
               </div>
               <div className="font-display text-xl mt-1">{info.label}</div>
               <div className="text-xs text-white/70 mt-1">{info.desc}</div>
+              {hasReal && (
+                <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] font-mono text-white/80">
+                  <div><div className="text-white/50 text-[9px] uppercase">Volume</div>{info.volumeM3.toFixed(2)} m³</div>
+                  <div><div className="text-white/50 text-[9px] uppercase">Área</div>{info.areaM2.toFixed(1)} m²</div>
+                  <div><div className="text-white/50 text-[9px] uppercase">Elementos</div>{info.elements}</div>
+                </div>
+              )}
+              {hasReal && info.invalid > 0 && (
+                <div className="mt-2 text-[11px] text-warning">
+                  Quantidade não determinada para {info.invalid} elementos.
+                </div>
+              )}
               <div className="mt-4 pt-4 border-t border-white/10">
-                <div className="text-[10px] uppercase tracking-wider text-white/60">Custo desta fase</div>
+                <div className="text-[10px] uppercase tracking-wider text-white/60">
+                  Custo desta fase {hasReal ? "· quantidade real × preço da base" : "· caso de estudo"}
+                </div>
                 <div className="font-display text-2xl text-warning">{fmtMT(total!)}</div>
               </div>
             </div>
@@ -365,7 +395,7 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                 {ALL.map((p) => (
                   <div key={p} className="flex items-center gap-1.5">
                     <span className="size-2.5 rounded-sm" style={{ background: PHASE_COLORS[p] }} />
-                    <span className="text-muted-foreground">{phase3DInfo[p].label}:</span>
+                    <span className="text-muted-foreground">{phaseData[p].label}:</span>
                     <span className="font-mono">{counts[p]}</span>
                   </div>
                 ))}
@@ -393,7 +423,7 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                             className="text-xs border border-border rounded px-1.5 py-1 bg-background"
                           >
                             {ALL.map((p) => (
-                              <option key={p} value={p}>{phase3DInfo[p].label}</option>
+                              <option key={p} value={p}>{phaseData[p].label}</option>
                             ))}
                           </select>
                         </div>
