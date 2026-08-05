@@ -7,6 +7,8 @@ import UploadedModel, { type MeshInfo } from "@/components/three/UploadedModel";
 import SceneErrorBoundary from "@/components/three/SceneErrorBoundary";
 import SafeEnvironment, { LocalLightRig } from "@/components/three/SafeEnvironment";
 import { phase3DInfo, fmtMT, type Phase3D } from "@/data/mock";
+import { setPriceCity } from "@/data/priceDb";
+import { aggregateByPhase, phaseLines, phaseLabel, phaseDesc } from "@/lib/phaseQuantities";
 import {
   useProjectModel,
   useProjectOverrides,
@@ -27,6 +29,8 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
   const projectId =
     projectIdProp ?? params.get("p") ?? params.get("projectId") ?? projects[0]?.id ?? "p-001";
   const project = projects.find((p) => p.id === projectId) ?? projects[0];
+  // Preços resolvidos pela cidade do projecto (Maputo vs Lichinga).
+  setPriceCity(project?.location);
 
   const uploaded = useProjectModel(projectId);
   const overrides = useProjectOverrides(projectId) as Record<string, PhaseKey>;
@@ -87,13 +91,40 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
     setLoadState("loading");
   };
 
-  const info = selected ? phase3DInfo[selected] : null;
-  const total = info ? info.items.reduce((a, i) => a + i.qty * i.preco, 0) : null;
-
   const ambiguous = useMemo(
     () => meshes.filter((m) => m.confidence < 0.6).slice(0, 30),
     [meshes]
   );
+
+  // === Quantidades reais extraídas da malha do ficheiro carregado ===
+  const hasReal = !!uploaded && meshes.length > 0;
+  const extraction = useMemo(() => aggregateByPhase(meshes, overrides), [meshes, overrides]);
+  const phaseData = useMemo(() => {
+    const out = {} as Record<
+      Phase3D,
+      { label: string; desc: string; lines: { item: string; desc: string; un: string; qty: number; preco: number; priced: boolean }[]; total: number; volumeM3: number; areaM2: number; elements: number; invalid: number }
+    >;
+    ALL.forEach((p) => {
+      const q = extraction.byPhase[p];
+      const lines = hasReal
+        ? phaseLines(p, q)
+        : phase3DInfo[p].items.map((i) => ({ ...i, priced: true }));
+      out[p] = {
+        label: hasReal ? phaseLabel(p) : phase3DInfo[p].label,
+        desc: hasReal ? phaseDesc(p) : phase3DInfo[p].desc,
+        lines,
+        total: lines.reduce((a, l) => a + l.qty * l.preco, 0),
+        volumeM3: q.volumeM3,
+        areaM2: q.areaM2 / 2,
+        elements: q.elements,
+        invalid: q.invalid,
+      };
+    });
+    return out;
+  }, [hasReal, extraction]);
+
+  const info = selected ? phaseData[selected] : null;
+  const total = info ? info.total : null;
   const counts = useMemo(() => {
     const c: Record<PhaseKey, number> = { fundacao: 0, pilares: 0, lajes: 0, alvenaria: 0, cobertura: 0, acabamentos: 0 };
     meshes.forEach((m) => { c[overrides[m.id] ?? m.phase]++; });
@@ -261,9 +292,26 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
             <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground flex items-center gap-1.5">
               <Layers className="size-3" /> Fases construtivas
             </div>
+            <div className="mt-2 text-[10px] leading-snug">
+              {hasReal ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 text-success px-2 py-0.5">
+                  Quantidades extraídas do ficheiro ({extraction.elementsTotal} elementos)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 text-warning px-2 py-0.5">
+                  Sem modelo carregado — valores de caso de estudo
+                </span>
+              )}
+              {hasReal && extraction.invalidTotal > 0 && (
+                <div className="mt-1.5 text-warning">
+                  Quantidade não determinada para {extraction.invalidTotal} elementos (geometria inválida).
+                </div>
+              )}
+            </div>
             <div className="mt-3 space-y-1.5">
               {ALL.map((p) => {
-                const phaseTotal = phase3DInfo[p].items.reduce((a, i) => a + i.qty * i.preco, 0);
+                const pd = phaseData[p];
+                const phaseTotal = pd.total;
                 const isSel = selected === p;
                 const isVis = visible.has(p);
                 return (
@@ -283,11 +331,17 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                       />
                       <span className="flex-1">
                         <div className="text-sm font-medium leading-tight">
-                          {phase3DInfo[p].label}
+                          {pd.label}
                         </div>
                         <div className="text-[11px] text-muted-foreground font-mono">
                           {fmtMT(phaseTotal)}
                         </div>
+                        {hasReal && (
+                          <div className="text-[10px] text-muted-foreground font-mono">
+                            {pd.volumeM3 > 0 ? `${pd.volumeM3.toFixed(2)} m³` : "— m³"} ·{" "}
+                            {pd.areaM2 > 0 ? `${pd.areaM2.toFixed(1)} m²` : "— m²"} · {pd.elements} el.
+                          </div>
+                        )}
                       </span>
                     </button>
                     <button
@@ -311,8 +365,22 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
               </div>
               <div className="font-display text-xl mt-1">{info.label}</div>
               <div className="text-xs text-white/70 mt-1">{info.desc}</div>
+              {hasReal && (
+                <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] font-mono text-white/80">
+                  <div><div className="text-white/50 text-[9px] uppercase">Volume</div>{info.volumeM3.toFixed(2)} m³</div>
+                  <div><div className="text-white/50 text-[9px] uppercase">Área</div>{info.areaM2.toFixed(1)} m²</div>
+                  <div><div className="text-white/50 text-[9px] uppercase">Elementos</div>{info.elements}</div>
+                </div>
+              )}
+              {hasReal && info.invalid > 0 && (
+                <div className="mt-2 text-[11px] text-warning">
+                  Quantidade não determinada para {info.invalid} elementos.
+                </div>
+              )}
               <div className="mt-4 pt-4 border-t border-white/10">
-                <div className="text-[10px] uppercase tracking-wider text-white/60">Custo desta fase</div>
+                <div className="text-[10px] uppercase tracking-wider text-white/60">
+                  Custo desta fase {hasReal ? "· quantidade real × preço da base" : "· caso de estudo"}
+                </div>
                 <div className="font-display text-2xl text-warning">{fmtMT(total!)}</div>
               </div>
             </div>
@@ -327,7 +395,7 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                 {ALL.map((p) => (
                   <div key={p} className="flex items-center gap-1.5">
                     <span className="size-2.5 rounded-sm" style={{ background: PHASE_COLORS[p] }} />
-                    <span className="text-muted-foreground">{phase3DInfo[p].label}:</span>
+                    <span className="text-muted-foreground">{phaseData[p].label}:</span>
                     <span className="font-mono">{counts[p]}</span>
                   </div>
                 ))}
@@ -355,7 +423,7 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                             className="text-xs border border-border rounded px-1.5 py-1 bg-background"
                           >
                             {ALL.map((p) => (
-                              <option key={p} value={p}>{phase3DInfo[p].label}</option>
+                              <option key={p} value={p}>{phaseData[p].label}</option>
                             ))}
                           </select>
                         </div>
@@ -377,7 +445,7 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
               Decomposição — <span className="text-accent">{info.label}</span>
             </div>
             <div className="text-xs text-muted-foreground">
-              {info.items.length} linhas · valores em MT
+              {info.lines.length} linhas · valores em MT
             </div>
           </div>
           <table className="w-full text-sm">
@@ -392,13 +460,17 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {info.items.map((i) => (
+              {info.lines.map((i) => (
                 <tr key={i.item} className="hover:bg-muted/30">
                   <td className="px-4 py-2.5 font-mono">{i.item}</td>
                   <td className="px-4 py-2.5">{i.desc}</td>
                   <td className="px-4 py-2.5 text-right text-muted-foreground">{i.un}</td>
-                  <td className="px-4 py-2.5 text-right font-mono">{i.qty.toLocaleString("pt-PT")}</td>
-                  <td className="px-4 py-2.5 text-right font-mono">{i.preco.toLocaleString("pt-PT")}</td>
+                  <td className="px-4 py-2.5 text-right font-mono">
+                    {i.qty.toLocaleString("pt-PT", { maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono">
+                    {i.priced ? i.preco.toLocaleString("pt-PT") : <span className="text-warning">sem preço</span>}
+                  </td>
                   <td className="px-4 py-2.5 text-right font-mono font-medium">
                     {(i.qty * i.preco).toLocaleString("pt-PT")}
                   </td>

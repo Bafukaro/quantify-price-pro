@@ -222,6 +222,10 @@ export type StoredMeshInfo = {
   phase: UploadedModelPhase;
   confidence: number;
   reason: string;
+  volumeM3?: number;
+  areaM2?: number;
+  elementCount?: number;
+  valid?: boolean;
 };
 
 export type ProjectModelState = {

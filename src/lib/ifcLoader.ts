@@ -41,7 +41,7 @@ export async function loadIFC(url: string): Promise<THREE.Group> {
   // dramatically and lets us dispose per-element geometries after merge.
   const buckets = new Map<
     string,
-    { geoms: THREE.BufferGeometry[]; color: THREE.Color; opacity: number }
+    { geoms: THREE.BufferGeometry[]; color: THREE.Color; opacity: number; elements: Set<number>; invalid: number }
   >();
 
   api.StreamAllMeshes(modelID, (flatMesh: any) => {
@@ -96,9 +96,13 @@ export async function loadIFC(url: string): Promise<THREE.Group> {
           geoms: [],
           color: new THREE.Color(color.x, color.y, color.z),
           opacity: color.w,
+          elements: new Set<number>(),
+          invalid: 0,
         };
         buckets.set(ifcClass, bucket);
       }
+      bucket.elements.add(expressID);
+      if (vertexCount < 3 || indices.length < 3) bucket.invalid += 1;
       bucket.geoms.push(bufGeom);
 
       geom.delete?.();
@@ -107,6 +111,8 @@ export async function loadIFC(url: string): Promise<THREE.Group> {
   });
 
   api.CloseModel(modelID);
+
+  let invalidElements = 0;
 
   // Merge each bucket → one mesh per IFC class. Mesh name = IFC class so the
   // downstream classifier in UploadedModel maps it straight to a phase.
@@ -121,7 +127,10 @@ export async function loadIFC(url: string): Promise<THREE.Group> {
     // Free per-element geometries now that they're merged (or failed).
     bucket.geoms.forEach((g) => g.dispose());
     bucket.geoms.length = 0;
-    if (!merged) return;
+    if (!merged) {
+      invalidElements += bucket.elements.size;
+      return;
+    }
 
     const material = new THREE.MeshStandardMaterial({
       color: bucket.color,
@@ -133,12 +142,19 @@ export async function loadIFC(url: string): Promise<THREE.Group> {
     });
     const mesh = new THREE.Mesh(merged, material);
     mesh.name = ifcClass;
-    mesh.userData = { ifcClass };
+    // Contagem real de elementos IFC desta classe, preservada ANTES do merge.
+    mesh.userData = {
+      ifcClass,
+      elementCount: bucket.elements.size,
+      invalidElements: bucket.invalid,
+    };
+    invalidElements += bucket.invalid;
     group.add(mesh);
   });
 
   // Rotate whole model from IFC Z-up → three.js Y-up.
   group.rotation.x = -Math.PI / 2;
   group.updateMatrixWorld(true);
+  group.userData = { ...group.userData, invalidElements, source: "ifc" };
   return group;
 }
