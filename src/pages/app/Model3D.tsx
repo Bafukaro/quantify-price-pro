@@ -294,7 +294,8 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
             </div>
             <div className="mt-3 space-y-1.5">
               {ALL.map((p) => {
-                const phaseTotal = phase3DInfo[p].items.reduce((a, i) => a + i.qty * i.preco, 0);
+                const pd = phaseData[p];
+                const phaseTotal = pd.total;
                 const isSel = selected === p;
                 const isVis = visible.has(p);
                 return (
@@ -314,11 +315,17 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                       />
                       <span className="flex-1">
                         <div className="text-sm font-medium leading-tight">
-                          {phase3DInfo[p].label}
+                          {pd.label}
                         </div>
                         <div className="text-[11px] text-muted-foreground font-mono">
                           {fmtMT(phaseTotal)}
                         </div>
+                        {hasReal && (
+                          <div className="text-[10px] text-muted-foreground font-mono">
+                            {pd.volumeM3 > 0 ? `${pd.volumeM3.toFixed(2)} m³` : "— m³"} ·{" "}
+                            {pd.areaM2 > 0 ? `${pd.areaM2.toFixed(1)} m²` : "— m²"} · {pd.elements} el.
+                          </div>
+                        )}
                       </span>
                     </button>
                     <button
