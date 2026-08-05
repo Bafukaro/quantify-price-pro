@@ -7,6 +7,8 @@ import UploadedModel, { type MeshInfo } from "@/components/three/UploadedModel";
 import SceneErrorBoundary from "@/components/three/SceneErrorBoundary";
 import SafeEnvironment, { LocalLightRig } from "@/components/three/SafeEnvironment";
 import { phase3DInfo, fmtMT, type Phase3D } from "@/data/mock";
+import { setPriceCity } from "@/data/priceDb";
+import { aggregateByPhase, phaseLines, phaseLabel, phaseDesc } from "@/lib/phaseQuantities";
 import {
   useProjectModel,
   useProjectOverrides,
@@ -27,6 +29,8 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
   const projectId =
     projectIdProp ?? params.get("p") ?? params.get("projectId") ?? projects[0]?.id ?? "p-001";
   const project = projects.find((p) => p.id === projectId) ?? projects[0];
+  // Preços resolvidos pela cidade do projecto (Maputo vs Lichinga).
+  setPriceCity(project?.location);
 
   const uploaded = useProjectModel(projectId);
   const overrides = useProjectOverrides(projectId) as Record<string, PhaseKey>;
@@ -87,13 +91,40 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
     setLoadState("loading");
   };
 
-  const info = selected ? phase3DInfo[selected] : null;
-  const total = info ? info.items.reduce((a, i) => a + i.qty * i.preco, 0) : null;
-
   const ambiguous = useMemo(
     () => meshes.filter((m) => m.confidence < 0.6).slice(0, 30),
     [meshes]
   );
+
+  // === Quantidades reais extraídas da malha do ficheiro carregado ===
+  const hasReal = !!uploaded && meshes.length > 0;
+  const extraction = useMemo(() => aggregateByPhase(meshes, overrides), [meshes, overrides]);
+  const phaseData = useMemo(() => {
+    const out = {} as Record<
+      Phase3D,
+      { label: string; desc: string; lines: { item: string; desc: string; un: string; qty: number; preco: number; priced: boolean }[]; total: number; volumeM3: number; areaM2: number; elements: number; invalid: number }
+    >;
+    ALL.forEach((p) => {
+      const q = extraction.byPhase[p];
+      const lines = hasReal
+        ? phaseLines(p, q)
+        : phase3DInfo[p].items.map((i) => ({ ...i, priced: true }));
+      out[p] = {
+        label: hasReal ? phaseLabel(p) : phase3DInfo[p].label,
+        desc: hasReal ? phaseDesc(p) : phase3DInfo[p].desc,
+        lines,
+        total: lines.reduce((a, l) => a + l.qty * l.preco, 0),
+        volumeM3: q.volumeM3,
+        areaM2: q.areaM2 / 2,
+        elements: q.elements,
+        invalid: q.invalid,
+      };
+    });
+    return out;
+  }, [hasReal, extraction]);
+
+  const info = selected ? phaseData[selected] : null;
+  const total = info ? info.total : null;
   const counts = useMemo(() => {
     const c: Record<PhaseKey, number> = { fundacao: 0, pilares: 0, lajes: 0, alvenaria: 0, cobertura: 0, acabamentos: 0 };
     meshes.forEach((m) => { c[overrides[m.id] ?? m.phase]++; });
