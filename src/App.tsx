@@ -5,6 +5,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Landing from "./pages/Landing.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Auth from "./pages/Auth.tsx";
+import RequireAuth from "./components/auth/RequireAuth.tsx";
+import { AuthProvider } from "./hooks/useAuth.tsx";
 import AppLayout from "./components/layout/AppLayout.tsx";
 import Dashboard from "./pages/app/Dashboard.tsx";
 import Project from "./pages/app/Project.tsx";
@@ -26,9 +29,18 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <AuthProvider>
         <Routes>
           <Route path="/" element={<Landing />} />
-          <Route path="/app" element={<AppLayout />}>
+          <Route path="/auth" element={<Auth />} />
+          <Route
+            path="/app"
+            element={
+              <RequireAuth>
+                <AppLayout />
+              </RequireAuth>
+            }
+          >
             <Route index element={<Dashboard />} />
             <Route path="projecto/:id" element={<Project />} />
             <Route path="modelo-3d" element={<Model3D />} />
@@ -44,6 +56,7 @@ const App = () => (
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
