@@ -416,8 +416,22 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
             <div className="text-sm font-medium">
               Decomposição — <span className="text-accent">{info.label}</span>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {info.lines.length} linhas · valores em MT
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground mr-1">
+                {info.lines.length} linhas · valores em MT
+              </span>
+              <button
+                onClick={() => exportPhaseExcel(project?.name ?? "Projecto", boq, selected!)}
+                className="inline-flex items-center gap-1.5 border border-border px-2.5 py-1.5 rounded-md text-xs hover:bg-muted"
+              >
+                <FileSpreadsheet className="size-3.5" /> Exportar esta fase (Excel)
+              </button>
+              <button
+                onClick={() => exportPhasePDF(project?.name ?? "Projecto", boq, selected!)}
+                className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-2.5 py-1.5 rounded-md text-xs font-medium hover:opacity-90"
+              >
+                <Download className="size-3.5" /> Exportar esta fase (PDF)
+              </button>
             </div>
           </div>
           <table className="w-full text-sm">
