@@ -1,10 +1,11 @@
 import { useParams, useSearchParams } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { boqRows, fmtMT, ganttTasks, phaseColors } from "@/data/mock";
 import { Download, FileSpreadsheet, AlertTriangle, Calendar, Bell, TrendingUp, TrendingDown, ShieldCheck, Calculator, FileText, ScrollText, GanttChartSquare, Layers } from "lucide-react";
 import { marketMedian, classifyRisk, RISK_COLOR, RISK_LABEL, setPriceCity } from "@/data/priceDb";
-import { useAudit, useProjects } from "@/data/store";
+import { useAudit, useProjects, useProjectMeshes, useProjectOverrides } from "@/data/store";
 import { exportBoQPDF, exportBoQExcel } from "@/lib/exports";
+import { buildBoQSource, boqGrandTotal, type BoQSource } from "@/lib/boqSource";
 import Model3D from "@/pages/app/Model3D";
 
 const phases = Object.keys(boqRows) as Array<keyof typeof boqRows>;
@@ -15,6 +16,8 @@ export default function Project() {
   const [params] = useSearchParams();
   const projects = useProjects();
   const project = projects.find((p) => p.id === id) ?? projects[0];
+  const meshes = useProjectMeshes(project?.id ?? "");
+  const overrides = useProjectOverrides(project?.id ?? "");
   // Preços resolvidos pela localização do projecto (Maputo vs Lichinga, etc.)
   setPriceCity(project?.location);
   const [active, setActive] = useState<TabKey>("resumo");
@@ -27,6 +30,20 @@ export default function Project() {
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const ivaPct = 0.17;
   const contPct = 0.10;
+
+  // Fonte única do BoQ — a mesma que alimenta o ecrã e as exportações.
+  const boq = useMemo(
+    () => buildBoQSource({ location: project?.location, meshes, overrides }),
+    [project?.location, meshes, overrides]
+  );
+
+  if (!project) {
+    return (
+      <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        Projecto não encontrado. Volte ao Dashboard.
+      </div>
+    );
+  }
 
   // contracted vs actual per phase
   const phaseTotals = phases.map((ph) => {
@@ -54,10 +71,10 @@ export default function Project() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => exportBoQExcel(project.name)} className="inline-flex items-center gap-2 border border-border px-4 py-2 rounded-md text-sm hover:bg-muted">
+            <button onClick={() => exportBoQExcel(project.name, boq)} className="inline-flex items-center gap-2 border border-border px-4 py-2 rounded-md text-sm hover:bg-muted">
               <FileSpreadsheet className="size-4" /> Exportar Excel
             </button>
-            <button onClick={() => exportBoQPDF(project.name)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90">
+            <button onClick={() => exportBoQPDF(project.name, boq)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90">
               <Download className="size-4" /> Exportar PDF
             </button>
           </div>
