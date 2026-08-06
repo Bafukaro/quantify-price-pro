@@ -14,7 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      projects: {
+        Row: {
+          alerts: number
+          client: string
+          created_at: string
+          id: string
+          legacy_id: string | null
+          location: string
+          meshes: Json
+          model_ext: string | null
+          model_name: string | null
+          model_path: string | null
+          model_size: number | null
+          name: string
+          overrides: Json
+          owner_id: string
+          phase: string
+          phases: Json
+          quantities: Json | null
+          spent_pct: number
+          structure_type: string | null
+          total_mt: number
+          updated_at: string
+        }
+        Insert: {
+          alerts?: number
+          client?: string
+          created_at?: string
+          id?: string
+          legacy_id?: string | null
+          location?: string
+          meshes?: Json
+          model_ext?: string | null
+          model_name?: string | null
+          model_path?: string | null
+          model_size?: number | null
+          name: string
+          overrides?: Json
+          owner_id?: string
+          phase?: string
+          phases?: Json
+          quantities?: Json | null
+          spent_pct?: number
+          structure_type?: string | null
+          total_mt?: number
+          updated_at?: string
+        }
+        Update: {
+          alerts?: number
+          client?: string
+          created_at?: string
+          id?: string
+          legacy_id?: string | null
+          location?: string
+          meshes?: Json
+          model_ext?: string | null
+          model_name?: string | null
+          model_path?: string | null
+          model_size?: number | null
+          name?: string
+          overrides?: Json
+          owner_id?: string
+          phase?: string
+          phases?: Json
+          quantities?: Json | null
+          spent_pct?: number
+          structure_type?: string | null
+          total_mt?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
