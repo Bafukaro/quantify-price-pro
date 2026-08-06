@@ -1,12 +1,12 @@
 import { useSyncExternalStore } from "react";
-import { auditEntries, projects as initialProjects } from "./mock";
+import { auditEntries } from "./mock";
+
+export * from "./projects";
 
 const TASKS_KEY = "sqi.tasks.v1";
 const QUOTES_KEY = "sqi.quotes.v1";
 const AUDIT_KEY = "sqi.audit.v1";
 const RISK_KEY = "sqi.risk.v1";
-const MODEL_OVERRIDES_KEY = "sqi.modelOverrides.v1";
-const PROJECTS_KEY = "sqi.projects.v1";
 
 function loadLS<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -58,7 +58,6 @@ const persist = () => {
   saveLS(AUDIT_KEY, audit);
   saveLS(QUOTES_KEY, quotes);
   saveLS(RISK_KEY, risks);
-  saveLS(PROJECTS_KEY, projects);
 };
 const emit = () => {
   persist();
@@ -72,64 +71,14 @@ const subscribe = (l: () => void) => {
 export function useTasks() {
   return useSyncExternalStore(subscribe, () => tasks, () => tasks);
 }
+export function pushAudit(entry: (typeof auditEntries)[number]) {
+  audit = [entry, ...audit];
+  emit();
+}
+export const auditStamp = () => nowStamp();
+
 export function useAudit() {
   return useSyncExternalStore(subscribe, () => audit, () => audit);
-}
-
-// === Projects (reactive, persisted) ===
-export type Project = (typeof initialProjects)[number];
-let projects: Project[] = loadLS<Project[]>(PROJECTS_KEY, initialProjects);
-
-export function useProjects() {
-  return useSyncExternalStore(subscribe, () => projects, () => projects);
-}
-
-export type NewProjectInput = {
-  name: string;
-  client: string;
-  location: string;
-  totalMT?: number;
-  phase?: string;
-  createdBy?: string;
-};
-
-export function addProject(input: NewProjectInput): string {
-  const id = `p-${Date.now()}`;
-  const today = new Date().toISOString().slice(0, 10);
-  const newP: Project = {
-    id,
-    name: input.name,
-    client: input.client || "—",
-    location: input.location || "—",
-    totalMT: input.totalMT ?? 0,
-    spentPct: 0,
-    phase: input.phase ?? "Fase 0 — Preliminares",
-    updatedAt: today,
-    phases: [
-      { name: "Preliminares", pct: 0 },
-      { name: "Estrutura", pct: 0 },
-      { name: "Alvenaria", pct: 0 },
-      { name: "Instalações", pct: 0 },
-      { name: "Acabamentos", pct: 0 },
-      { name: "Exteriores", pct: 0 },
-    ],
-    alerts: 0,
-  };
-  projects = [newP, ...projects];
-  audit = [
-    {
-      dt: nowStamp(),
-      user: input.createdBy || "Cláudia M. (Gestor)",
-      item: "Novo projecto criado",
-      from: "—",
-      to: newP.name,
-      delta: 0,
-      just: `Cliente: ${newP.client} · ${newP.location}`,
-    },
-    ...audit,
-  ];
-  emit();
-  return id;
 }
 
 const nowStamp = () => {
@@ -202,99 +151,6 @@ export type RiskCase = {
 let risks: RiskCase[] = loadLS<RiskCase[]>(RISK_KEY, []);
 export function useRisks() {
   return useSyncExternalStore(subscribe, () => risks, () => risks);
-}
-
-// === Per-project uploaded 3D model state ===
-// The blob URL and mesh list are session-only (not persistable), so they live
-// in memory keyed by projectId. Manual phase overrides ARE persisted because
-// they represent user corrections.
-export type UploadedModelPhase =
-  | "fundacao"
-  | "pilares"
-  | "lajes"
-  | "alvenaria"
-  | "cobertura"
-  | "acabamentos";
-
-export type StoredMeshInfo = {
-  id: string;
-  name: string;
-  phase: UploadedModelPhase;
-  confidence: number;
-  reason: string;
-  volumeM3?: number;
-  areaM2?: number;
-  elementCount?: number;
-  valid?: boolean;
-};
-
-export type ProjectModelState = {
-  url: string;
-  ext: "gltf" | "glb" | "obj" | "ifc";
-  name: string;
-  size: number;
-  meshes: StoredMeshInfo[];
-};
-
-const projectModels = new Map<string, ProjectModelState>();
-let projectOverrides: Record<string, Record<string, UploadedModelPhase>> = loadLS(
-  MODEL_OVERRIDES_KEY,
-  {}
-);
-
-const persistOverrides = () => saveLS(MODEL_OVERRIDES_KEY, projectOverrides);
-
-// Snapshot ref bumped on every change so useSyncExternalStore re-renders.
-let modelsSnapshot = { models: projectModels, overrides: projectOverrides, v: 0 };
-const bumpModels = () => {
-  modelsSnapshot = { models: projectModels, overrides: projectOverrides, v: modelsSnapshot.v + 1 };
-  listeners.forEach((l) => l());
-};
-
-export function useProjectModel(projectId: string) {
-  useSyncExternalStore(subscribe, () => modelsSnapshot, () => modelsSnapshot);
-  return projectModels.get(projectId) ?? null;
-}
-
-export function useProjectOverrides(projectId: string) {
-  useSyncExternalStore(subscribe, () => modelsSnapshot, () => modelsSnapshot);
-  return projectOverrides[projectId] ?? {};
-}
-
-export function setProjectModel(projectId: string, state: ProjectModelState | null) {
-  // Revoke stale blob URL if we're replacing/clearing.
-  const prev = projectModels.get(projectId);
-  if (prev && prev.url !== state?.url && prev.url.startsWith("blob:")) {
-    try { URL.revokeObjectURL(prev.url); } catch { /* noop */ }
-  }
-  if (state) projectModels.set(projectId, state);
-  else projectModels.delete(projectId);
-  bumpModels();
-}
-
-export function setProjectModelMeshes(projectId: string, meshes: StoredMeshInfo[]) {
-  const cur = projectModels.get(projectId);
-  if (!cur) return;
-  projectModels.set(projectId, { ...cur, meshes });
-  bumpModels();
-}
-
-export function setProjectMeshOverride(
-  projectId: string,
-  meshId: string,
-  phase: UploadedModelPhase
-) {
-  const cur = projectOverrides[projectId] ?? {};
-  projectOverrides = { ...projectOverrides, [projectId]: { ...cur, [meshId]: phase } };
-  persistOverrides();
-  bumpModels();
-}
-
-export function clearProjectMeshOverrides(projectId: string) {
-  const { [projectId]: _, ...rest } = projectOverrides;
-  projectOverrides = rest;
-  persistOverrides();
-  bumpModels();
 }
 
 export function openRiskCase(c: Omit<RiskCase, "id" | "status" | "createdAt">) {

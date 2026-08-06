@@ -2,10 +2,20 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { fmtMT } from "@/data/mock";
 import { AlertTriangle, ArrowUpRight, Plus, Building2, Wallet, ScrollText, Upload, X, Box } from "lucide-react";
-import { useAudit, useProjects, addProject, setProjectModel, useProjectModel } from "@/data/store";
+import {
+  useAudit,
+  useProjects,
+  useProjectsLoaded,
+  addProject,
+  uploadProjectModel,
+  useProjectHasModel,
+  pushAudit,
+  auditStamp,
+} from "@/data/store";
 
 export default function Dashboard() {
   const projects = useProjects();
+  const projectsLoaded = useProjectsLoaded();
   const totalGerido = projects.reduce((a, p) => a + p.totalMT, 0);
   const totalAlertas = projects.reduce((a, p) => a + p.alerts, 0);
   const audit = useAudit();
@@ -44,6 +54,11 @@ export default function Dashboard() {
           </button>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {projectsLoaded && projects.length === 0 && (
+            <div className="col-span-full rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+              Ainda não tem projectos nesta conta. Crie o primeiro em “Novo projecto”.
+            </div>
+          )}
           {projects.map((p) => (
           <Link
             key={p.id}
@@ -117,11 +132,11 @@ export default function Dashboard() {
 }
 
 function ModelBadge({ projectId }: { projectId: string }) {
-  const m = useProjectModel(projectId);
-  if (!m) return null;
+  const has = useProjectHasModel(projectId);
+  if (!has) return null;
   return (
     <span
-      title={`Modelo 3D carregado · ${m.name}`}
+      title="Modelo 3D guardado na nuvem"
       className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-accent/10 text-accent uppercase tracking-wider"
     >
       <Box className="size-3" /> 3D
@@ -148,30 +163,46 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
   const [client, setClient] = useState("");
   const [location, setLocation] = useState("");
   const [budget, setBudget] = useState("");
+  const [structure, setStructure] = useState("Betão armado");
+  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { setErr("Nome obrigatório."); return; }
-    const id = addProject({
+    setBusy(true);
+    setErr(null);
+    const id = await addProject({
       name: name.trim(),
       client: client.trim(),
       location: location.trim(),
       totalMT: Number(budget) || 0,
+      structureType: structure,
     });
+    if (!id) {
+      setBusy(false);
+      setErr("Não foi possível criar o projecto. Verifique a sessão.");
+      return;
+    }
     if (file) {
-      const lower = file.name.toLowerCase();
-      let ext: "gltf" | "glb" | "obj" | "ifc" | null = null;
-      if (lower.endsWith(".glb")) ext = "glb";
-      else if (lower.endsWith(".gltf")) ext = "gltf";
-      else if (lower.endsWith(".obj")) ext = "obj";
-      else if (lower.endsWith(".ifc")) ext = "ifc";
-      if (ext && file.size > 0) {
-        const url = URL.createObjectURL(file);
-        setProjectModel(id, { url, ext, name: file.name, size: file.size, meshes: [] });
+      const uploadErr = await uploadProjectModel(id, file);
+      if (uploadErr) {
+        setBusy(false);
+        setErr(uploadErr);
+        return;
       }
     }
+    pushAudit({
+      dt: auditStamp(),
+      user: "Gestor",
+      item: "Novo projecto criado",
+      from: "—",
+      to: name.trim(),
+      delta: 0,
+      just: `Cliente: ${client.trim() || "—"} · ${location.trim() || "—"}`,
+    });
+    setBusy(false);
     onClose();
     navigate(`/app/projecto/${id}?tab=vista3d`);
   };
@@ -190,7 +221,12 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
             <Field label="Localização" placeholder="Cidade · Bairro" value={location} onChange={(e:any)=>setLocation(e.target.value)} />
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
-            <SelectField label="Tipo de estrutura" options={["Betão armado", "Estrutura metálica", "Mista", "Alvenaria estrutural"]} />
+            <SelectField
+              label="Tipo de estrutura"
+              options={["Betão armado", "Estrutura metálica", "Mista", "Alvenaria estrutural"]}
+              value={structure}
+              onChange={(e: any) => setStructure(e.target.value)}
+            />
             <Field label="Orçamento estimado (MT)" type="number" placeholder="0" value={budget} onChange={(e:any)=>setBudget(e.target.value)} />
           </div>
           <div>
@@ -211,8 +247,8 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted">
               Cancelar
             </button>
-            <button type="submit" className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90">
-              Criar projecto
+            <button type="submit" disabled={busy} className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-60">
+              {busy ? "A guardar…" : "Criar projecto"}
             </button>
           </div>
         </form>
@@ -233,12 +269,12 @@ function Field({ label, ...rest }: any) {
   );
 }
 
-function SelectField({ label, options }: { label: string; options: string[] }) {
+function SelectField({ label, options, ...rest }: any) {
   return (
     <div>
       <label className="text-xs uppercase tracking-wider text-muted-foreground">{label}</label>
-      <select className="mt-1.5 w-full px-3 py-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:border-accent">
-        {options.map((o) => <option key={o}>{o}</option>)}
+      <select {...rest} className="mt-1.5 w-full px-3 py-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:border-accent">
+        {options.map((o: string) => <option key={o}>{o}</option>)}
       </select>
     </div>
   );

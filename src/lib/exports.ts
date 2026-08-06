@@ -1,74 +1,120 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
-import { boqRows, fmtMT } from "@/data/mock";
-import { marketMedian, classifyRisk, RISK_LABEL } from "@/data/priceDb";
+import { fmtMT } from "@/data/mock";
+import type { BoQSection, BoQSource } from "@/lib/boqSource";
+import { boqGrandTotal } from "@/lib/boqSource";
 
-type BoQKey = keyof typeof boqRows;
+const safe = (s: string) => s.replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
 
-function buildRows(phase: BoQKey) {
-  return boqRows[phase].map((r) => {
-    const market = r.materialId ? marketMedian(r.materialId) : 0;
-    const price = market > 0 ? market : r.atual;
-    const delta = ((price - r.p2019) / r.p2019) * 100;
-    const total = r.qty * price;
-    const risk = classifyRisk(delta);
-    return {
-      Item: r.item,
-      Descrição: r.desc,
-      Un: r.un,
-      Qtd: r.qty,
-      "Preço 2019": r.p2019,
-      "Preço actual": Math.round(price),
-      "Δ%": `+${delta.toFixed(0)}%`,
-      Risco: RISK_LABEL[risk],
-      "Total (MT)": Math.round(total),
-    };
-  });
+function sectionRows(sec: BoQSection) {
+  return sec.lines.map((l) => ({
+    Item: l.item,
+    Descrição: l.desc,
+    Un: l.un,
+    Qtd: Number(l.qty.toFixed(2)),
+    "P.U. (MT)": l.priced ? Math.round(l.preco) : "sem preço",
+    "Total (MT)": Math.round(l.qty * l.preco),
+  }));
 }
 
-export function exportBoQPDF(projectName: string) {
+function sectionMeta(src: BoQSource, sec: BoQSection) {
+  if (!src.hasReal) return sec.desc;
+  return `${sec.desc} · ${sec.volumeM3.toFixed(2)} m³ · ${sec.areaM2.toFixed(1)} m² · ${sec.elements} elementos`;
+}
+
+function pdfDoc(projectName: string, src: BoQSource, subtitle: string) {
   const doc = new jsPDF();
   doc.setFontSize(16);
   doc.text("Bill of Quantities — " + projectName, 14, 16);
-  doc.setFontSize(10);
-  doc.text("Gerado: " + new Date().toLocaleString("pt-PT"), 14, 22);
+  doc.setFontSize(9);
+  doc.text(subtitle, 14, 22);
+  doc.text("Origem dos dados: " + src.originLabel, 14, 27, { maxWidth: 180 });
+  doc.text("Gerado: " + new Date().toLocaleString("pt-PT"), 14, 32);
+  return doc;
+}
 
-  let y = 30;
-  let grand = 0;
-  (Object.keys(boqRows) as BoQKey[]).forEach((phase) => {
-    const data = buildRows(phase);
-    const subtotal = data.reduce((a, r) => a + (r["Total (MT)"] as number), 0);
-    grand += subtotal;
-    doc.setFontSize(12);
-    doc.text(phase, 14, y);
-    autoTable(doc, {
-      startY: y + 3,
-      head: [Object.keys(data[0])],
-      body: data.map((r) => Object.values(r) as any),
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [30, 50, 90] },
-      foot: [["", "", "", "", "", "", "", "Subtotal", fmtMT(subtotal)]],
-      footStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: "bold" },
-    });
-    y = (doc as any).lastAutoTable.finalY + 10;
-    if (y > 250) {
+function addSection(doc: jsPDF, src: BoQSource, sec: BoQSection, y: number) {
+  const data = sectionRows(sec);
+  doc.setFontSize(12);
+  doc.text(sec.label, 14, y);
+  doc.setFontSize(8);
+  doc.text(sectionMeta(src, sec), 14, y + 4.5, { maxWidth: 180 });
+  autoTable(doc, {
+    startY: y + 8,
+    head: [Object.keys(data[0] ?? { Item: "", Descrição: "", Un: "", Qtd: "", "P.U. (MT)": "", "Total (MT)": "" })],
+    body: data.map((r) => Object.values(r) as any),
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [30, 50, 90] },
+    foot: [["", "", "", "", "Subtotal", fmtMT(sec.total)]],
+    footStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: "bold" },
+  });
+  return (doc as any).lastAutoTable.finalY + 10;
+}
+
+export function exportBoQPDF(projectName: string, src: BoQSource) {
+  const doc = pdfDoc(projectName, src, "Orçamento completo — todas as fases construtivas");
+  let y = 40;
+  src.order.forEach((p) => {
+    if (y > 240) {
       doc.addPage();
       y = 20;
     }
+    y = addSection(doc, src, src.sections[p], y);
   });
+  if (y > 260) {
+    doc.addPage();
+    y = 20;
+  }
   doc.setFontSize(13);
-  doc.text("TOTAL GERAL: " + fmtMT(grand), 14, y);
-  doc.save(`BoQ_${projectName.replace(/\s+/g, "_")}.pdf`);
+  doc.text("TOTAL GERAL: " + fmtMT(boqGrandTotal(src)), 14, y);
+  doc.save(`BoQ_${safe(projectName)}.pdf`);
 }
 
-export function exportBoQExcel(projectName: string) {
+export function exportBoQExcel(projectName: string, src: BoQSource) {
   const wb = XLSX.utils.book_new();
-  (Object.keys(boqRows) as BoQKey[]).forEach((phase) => {
-    const data = buildRows(phase);
-    const ws = XLSX.utils.json_to_sheet(data);
-    const sheetName = phase.replace(/[^\w\s—-]/g, "").slice(0, 28);
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  src.order.forEach((p) => {
+    const sec = src.sections[p];
+    const ws = XLSX.utils.aoa_to_sheet([
+      [sec.label],
+      [sectionMeta(src, sec)],
+      [src.originLabel],
+      [],
+    ]);
+    XLSX.utils.sheet_add_json(ws, sectionRows(sec), { origin: "A5" });
+    XLSX.utils.sheet_add_aoa(ws, [["", "", "", "", "Subtotal (MT)", Math.round(sec.total)]], {
+      origin: -1,
+    });
+    XLSX.utils.book_append_sheet(wb, ws, sec.label.slice(0, 28));
   });
-  XLSX.writeFile(wb, `BoQ_${projectName.replace(/\s+/g, "_")}.xlsx`);
+  const resumo = XLSX.utils.json_to_sheet(
+    src.order.map((p) => ({ Fase: src.sections[p].label, "Total (MT)": Math.round(src.sections[p].total) }))
+  );
+  XLSX.utils.sheet_add_aoa(resumo, [["TOTAL GERAL", Math.round(boqGrandTotal(src))]], { origin: -1 });
+  XLSX.utils.book_append_sheet(wb, resumo, "Resumo");
+  XLSX.writeFile(wb, `BoQ_${safe(projectName)}.xlsx`);
+}
+
+export function exportPhasePDF(projectName: string, src: BoQSource, phase: keyof BoQSource["sections"]) {
+  const sec = src.sections[phase];
+  const doc = pdfDoc(projectName, src, `Cotação parcial — fase ${sec.label}`);
+  const y = addSection(doc, src, sec, 40);
+  doc.setFontSize(13);
+  doc.text(`TOTAL DA FASE (${sec.label}): ` + fmtMT(sec.total), 14, y);
+  doc.save(`BoQ_${safe(projectName)}_${safe(sec.label)}.pdf`);
+}
+
+export function exportPhaseExcel(projectName: string, src: BoQSource, phase: keyof BoQSource["sections"]) {
+  const sec = src.sections[phase];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([
+    [`${projectName} — ${sec.label}`],
+    [sectionMeta(src, sec)],
+    [src.originLabel],
+    [],
+  ]);
+  XLSX.utils.sheet_add_json(ws, sectionRows(sec), { origin: "A5" });
+  XLSX.utils.sheet_add_aoa(ws, [["", "", "", "", "Total da fase (MT)", Math.round(sec.total)]], { origin: -1 });
+  XLSX.utils.book_append_sheet(wb, ws, sec.label.slice(0, 28));
+  XLSX.writeFile(wb, `BoQ_${safe(projectName)}_${safe(sec.label)}.xlsx`);
 }

@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -6,7 +6,9 @@ import {
   Bell,
   Search,
   Building2,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const nav = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -21,6 +23,9 @@ const titles: Record<string, string> = {
 
 export default function AppLayout() {
   const { pathname } = useLocation();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const initials = (user?.email ?? "??").slice(0, 2).toUpperCase();
   const title =
     titles[pathname] ||
     (pathname.startsWith("/app/projecto") ? "Projecto — BoQ por Fases" : "SQI");
@@ -94,12 +99,22 @@ export default function AppLayout() {
             </button>
             <div className="flex items-center gap-2.5 pl-3 border-l border-border">
               <div className="size-8 rounded-full bg-gradient-accent grid place-items-center text-primary-foreground text-xs font-semibold">
-                CM
+                {initials}
               </div>
               <div className="hidden sm:block leading-tight">
-                <div className="text-sm font-medium">Cláudia Macuácua</div>
-                <div className="text-[11px] text-muted-foreground">Gestor de Obra</div>
+                <div className="text-sm font-medium max-w-[180px] truncate">{user?.email}</div>
+                <div className="text-[11px] text-muted-foreground">Sessão activa</div>
               </div>
+              <button
+                onClick={async () => {
+                  await signOut();
+                  navigate("/auth", { replace: true });
+                }}
+                title="Terminar sessão"
+                className="size-9 grid place-items-center rounded-md hover:bg-muted text-muted-foreground"
+              >
+                <LogOut className="size-4" />
+              </button>
             </div>
           </div>
         </header>
