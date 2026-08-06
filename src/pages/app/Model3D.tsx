@@ -8,16 +8,18 @@ import SceneErrorBoundary from "@/components/three/SceneErrorBoundary";
 import SafeEnvironment, { LocalLightRig } from "@/components/three/SafeEnvironment";
 import { phase3DInfo, fmtMT, type Phase3D } from "@/data/mock";
 import { setPriceCity } from "@/data/priceDb";
-import { aggregateByPhase, phaseLines, phaseLabel, phaseDesc } from "@/lib/phaseQuantities";
+import { buildBoQSource } from "@/lib/boqSource";
+import { exportPhaseExcel, exportPhasePDF } from "@/lib/exports";
 import {
   useProjectModel,
   useProjectOverrides,
-  setProjectModel,
+  useProjectMeshes,
+  uploadProjectModel,
   setProjectModelMeshes,
   setProjectMeshOverride,
   useProjects,
 } from "@/data/store";
-import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle } from "lucide-react";
+import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle, Download, FileSpreadsheet } from "lucide-react";
 
 const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "acabamentos"];
 
@@ -34,7 +36,7 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
 
   const uploaded = useProjectModel(projectId);
   const overrides = useProjectOverrides(projectId) as Record<string, PhaseKey>;
-  const meshes = (uploaded?.meshes ?? []) as MeshInfo[];
+  const meshes = useProjectMeshes(projectId) as MeshInfo[];
 
   const [selected, setSelected] = useState<PhaseKey | null>(null);
   const [visible, setVisible] = useState<Set<Phase3D>>(new Set(ALL));
@@ -65,30 +67,18 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
     setVisible(new Set(ALL));
   };
 
-  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    const lower = f.name.toLowerCase();
-    let ext: "gltf" | "glb" | "obj" | "ifc" | null = null;
-    if (lower.endsWith(".glb")) ext = "glb";
-    else if (lower.endsWith(".gltf")) ext = "gltf";
-    else if (lower.endsWith(".obj")) ext = "obj";
-    else if (lower.endsWith(".ifc")) ext = "ifc";
-    if (!ext) {
-      alert("Formato não suportado. Use .ifc, .gltf, .glb ou .obj");
-      return;
-    }
-    if (f.size === 0) {
-      setLoadError("Ficheiro vazio (0 bytes).");
-      setLoadState("error");
-      return;
-    }
-    const url = URL.createObjectURL(f);
-    setProjectModel(projectId, { url, ext, name: f.name, size: f.size, meshes: [] });
     setSelected(null);
     setVisible(new Set(ALL));
     setLoadError(null);
     setLoadState("loading");
+    const err = await uploadProjectModel(projectId, f);
+    if (err) {
+      setLoadError(err);
+      setLoadState("error");
+    }
   };
 
   const ambiguous = useMemo(
@@ -96,32 +86,14 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
     [meshes]
   );
 
-  // === Quantidades reais extraídas da malha do ficheiro carregado ===
-  const hasReal = !!uploaded && meshes.length > 0;
-  const extraction = useMemo(() => aggregateByPhase(meshes, overrides), [meshes, overrides]);
-  const phaseData = useMemo(() => {
-    const out = {} as Record<
-      Phase3D,
-      { label: string; desc: string; lines: { item: string; desc: string; un: string; qty: number; preco: number; priced: boolean }[]; total: number; volumeM3: number; areaM2: number; elements: number; invalid: number }
-    >;
-    ALL.forEach((p) => {
-      const q = extraction.byPhase[p];
-      const lines = hasReal
-        ? phaseLines(p, q)
-        : phase3DInfo[p].items.map((i) => ({ ...i, priced: true }));
-      out[p] = {
-        label: hasReal ? phaseLabel(p) : phase3DInfo[p].label,
-        desc: hasReal ? phaseDesc(p) : phase3DInfo[p].desc,
-        lines,
-        total: lines.reduce((a, l) => a + l.qty * l.preco, 0),
-        volumeM3: q.volumeM3,
-        areaM2: q.areaM2 / 2,
-        elements: q.elements,
-        invalid: q.invalid,
-      };
-    });
-    return out;
-  }, [hasReal, extraction]);
+  // === Fonte única: quantidades reais extraídas da malha (ou caso de estudo) ===
+  const boq = useMemo(
+    () => buildBoQSource({ location: project?.location, meshes, overrides }),
+    [project?.location, meshes, overrides]
+  );
+  const hasReal = boq.hasReal;
+  const extraction = { elementsTotal: boq.elementsTotal, invalidTotal: boq.invalidTotal };
+  const phaseData = boq.sections;
 
   const info = selected ? phaseData[selected] : null;
   const total = info ? info.total : null;
