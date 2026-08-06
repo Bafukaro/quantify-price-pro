@@ -54,7 +54,9 @@ export default function Project() {
   });
   const totalActual = phaseTotals.reduce((a, p) => a + p.actual, 0);
   const totalContracted = phaseTotals.reduce((a, p) => a + p.contracted, 0);
-  const deviationPct = ((totalActual - totalContracted) / totalContracted) * 100;
+  // Valor total do sistema: quantidades reais persistidas quando existe modelo.
+  const sistemaTotal = boq.hasReal ? boqGrandTotal(boq) : totalActual;
+  const deviationPct = ((sistemaTotal - totalContracted) / totalContracted) * 100;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -109,8 +111,12 @@ export default function Project() {
                   {deviationPct > 0 ? "+" : ""}{deviationPct.toFixed(1)}%
                 </span>
               </div>
-              <div className="font-display text-3xl mt-2">{fmtMT(totalActual)}</div>
-              <div className="text-xs text-muted-foreground mt-1">Preços actuais · {phases.length} fases</div>
+              <div className="font-display text-3xl mt-2">{fmtMT(sistemaTotal)}</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {boq.hasReal
+                  ? `Quantidades extraídas do modelo (${boq.elementsTotal} elementos) × Base de Preços`
+                  : `Caso de estudo · ${phases.length} fases`}
+              </div>
             </div>
           </div>
 
@@ -181,10 +187,10 @@ export default function Project() {
       {active === "vista3d" && <Model3D projectId={project.id} />}
       {active === "fases" && <FasesView ivaPct={ivaPct} contPct={contPct} />}
       {active === "calculos" && <CalculosView />}
-      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} />}
+      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} boq={boq} />}
       {active === "cronograma" && <CronogramaView />}
       {active === "auditlog" && <AuditLogView />}
-      {active === "relatorio" && <RelatorioView project={project} totalActual={totalActual} totalContracted={totalContracted} deviationPct={deviationPct} exec={exec} />}
+      {active === "relatorio" && <RelatorioView project={project} boq={boq} totalActual={sistemaTotal} totalContracted={totalContracted} deviationPct={deviationPct} exec={exec} />}
     </div>
   );
 }
