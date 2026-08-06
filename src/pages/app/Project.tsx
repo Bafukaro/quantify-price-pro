@@ -526,15 +526,8 @@ function CalculosView() {
 }
 
 // ===================== ORÇAMENTO =====================
-function OrcamentoView({ ivaPct, contPct, projectName }: { ivaPct: number; contPct: number; projectName: string }) {
-  const perPhase = phases.map((ph) => {
-    const subtotal = boqRows[ph].reduce((a, r) => {
-      const m = r.materialId ? marketMedian(r.materialId) : 0;
-      return a + r.qty * (m > 0 ? m : r.atual);
-    }, 0);
-    return { ph, subtotal };
-  });
-  const subtotalGeral = perPhase.reduce((a, p) => a + p.subtotal, 0);
+function OrcamentoView({ ivaPct, contPct, projectName, boq }: { ivaPct: number; contPct: number; projectName: string; boq: BoQSource }) {
+  const subtotalGeral = boqGrandTotal(boq);
   const contingencia = subtotalGeral * contPct;
   const iva = subtotalGeral * ivaPct;
   const total = subtotalGeral + contingencia + iva;
@@ -542,24 +535,64 @@ function OrcamentoView({ ivaPct, contPct, projectName }: { ivaPct: number; contP
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="text-sm text-muted-foreground">
-          BoQ completo gerado automaticamente a partir das quantidades extraídas e da Base de Preços.
-        </div>
+        <div className="text-sm text-muted-foreground max-w-xl">{boq.originLabel}</div>
         <div className="flex gap-2">
-          <button onClick={() => exportBoQExcel(projectName)} className="inline-flex items-center gap-2 border border-border px-3 py-1.5 rounded-md text-sm hover:bg-muted">
+          <button onClick={() => exportBoQExcel(projectName, boq)} className="inline-flex items-center gap-2 border border-border px-3 py-1.5 rounded-md text-sm hover:bg-muted">
             <FileSpreadsheet className="size-4" /> Excel
           </button>
-          <button onClick={() => exportBoQPDF(projectName)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:opacity-90">
+          <button onClick={() => exportBoQPDF(projectName, boq)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:opacity-90">
             <Download className="size-4" /> PDF
           </button>
         </div>
       </div>
-      {phases.map((ph) => (
-        <div key={ph} className="space-y-2">
-          <div className="text-sm font-display">{ph}</div>
-          <BoQTable phase={ph} ivaPct={0} contPct={0} />
-        </div>
-      ))}
+      {boq.order.map((key) => {
+        const sec = boq.sections[key];
+        return (
+          <div key={key} className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-muted/30 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <div className="font-display text-base">{sec.label}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {boq.hasReal
+                    ? `${sec.volumeM3.toFixed(2)} m³ · ${sec.areaM2.toFixed(1)} m² · ${sec.elements} elementos`
+                    : sec.desc}
+                </div>
+              </div>
+              <div className="font-mono text-sm">{fmtMT(sec.total)}</div>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-muted-foreground text-xs uppercase tracking-wider">
+                <tr>
+                  <th className="px-4 py-2.5 text-left">Item</th>
+                  <th className="px-4 py-2.5 text-left">Descrição</th>
+                  <th className="px-4 py-2.5 text-right">Un</th>
+                  <th className="px-4 py-2.5 text-right">Qtd</th>
+                  <th className="px-4 py-2.5 text-right">P.U.</th>
+                  <th className="px-4 py-2.5 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {sec.lines.map((l) => (
+                  <tr key={l.item} className="hover:bg-muted/30">
+                    <td className="px-4 py-2.5 font-mono">{l.item}</td>
+                    <td className="px-4 py-2.5">{l.desc}</td>
+                    <td className="px-4 py-2.5 text-right text-muted-foreground">{l.un}</td>
+                    <td className="px-4 py-2.5 text-right font-mono">
+                      {l.qty.toLocaleString("pt-PT", { maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono">
+                      {l.priced ? l.preco.toLocaleString("pt-PT") : <span className="text-warning">sem preço</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono font-medium">
+                      {Math.round(l.qty * l.preco).toLocaleString("pt-PT")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
       <div className="rounded-xl bg-primary text-primary-foreground p-6 shadow-elegant">
         <div className="text-[11px] uppercase tracking-[0.18em] text-white/60">Total geral do projecto</div>
         <div className="grid sm:grid-cols-4 gap-4 mt-4">
@@ -696,7 +729,7 @@ function AuditLogView() {
 }
 
 // ===================== RELATÓRIO =====================
-function RelatorioView({ project, totalActual, totalContracted, deviationPct, exec }: any) {
+function RelatorioView({ project, boq, totalActual, totalContracted, deviationPct, exec }: any) {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -704,7 +737,7 @@ function RelatorioView({ project, totalActual, totalContracted, deviationPct, ex
           <FileText className="size-4" />
           Relatório técnico compilando todas as secções do projecto
         </div>
-        <button onClick={() => exportBoQPDF(project.name)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90">
+        <button onClick={() => exportBoQPDF(project.name, boq)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90">
           <Download className="size-4" /> Gerar PDF
         </button>
       </div>
