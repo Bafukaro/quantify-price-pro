@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { clearProjects, loadProjects } from "@/data/projects";
+import { setAuditUser } from "@/data/store";
 
 type AuthCtx = {
   session: Session | null;
@@ -20,12 +21,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
       setLoading(false);
+      setAuditUser(s?.user?.email ?? null);
       if (s) void loadProjects(true);
       else clearProjects();
     });
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);
+      setAuditUser(data.session?.user?.email ?? null);
       if (data.session) void loadProjects(true);
     });
     return () => sub.subscription.unsubscribe();

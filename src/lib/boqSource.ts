@@ -3,6 +3,7 @@ import { phase3DInfo } from "@/data/mock";
 import { setPriceCity } from "@/data/priceDb";
 import { aggregateByPhase, phaseDesc, phaseLabel, phaseLines, PHASES } from "@/lib/phaseQuantities";
 import type { StoredMeshInfo } from "@/data/projects";
+import type { RebarTakeoff } from "@/lib/rebar";
 
 export type BoQLine = {
   item: string;
@@ -11,6 +12,8 @@ export type BoQLine = {
   qty: number;
   preco: number;
   priced: boolean;
+  materialId: string | null;
+  isSteel: boolean;
 };
 
 export type BoQSection = {
@@ -31,6 +34,8 @@ export type BoQSource = {
   hasReal: boolean;
   elementsTotal: number;
   invalidTotal: number;
+  /** Takeoff de armadura extraído do IFC (IfcReinforcingBar) — null quando não modelada. */
+  rebar: RebarTakeoff | null;
   /** Rótulo honesto da origem dos números — usado no ecrã E nas exportações. */
   originLabel: string;
 };
@@ -44,6 +49,7 @@ export function buildBoQSource(opts: {
   location?: string;
   meshes: StoredMeshInfo[];
   overrides: Record<string, PhaseKey>;
+  rebar?: RebarTakeoff | null;
 }): BoQSource {
   setPriceCity(opts.location);
   const hasReal = opts.meshes.length > 0;
@@ -52,8 +58,17 @@ export function buildBoQSource(opts: {
   for (const p of PHASES) {
     const q = byPhase[p];
     const lines: BoQLine[] = hasReal
-      ? phaseLines(p, q).map((l) => ({ item: l.item, desc: l.desc, un: l.un, qty: l.qty, preco: l.preco, priced: l.priced }))
-      : phase3DInfo[p].items.map((i) => ({ ...i, priced: true }));
+      ? phaseLines(p, q).map((l) => ({
+          item: l.item,
+          desc: l.desc,
+          un: l.un,
+          qty: l.qty,
+          preco: l.preco,
+          priced: l.priced,
+          materialId: l.materialId,
+          isSteel: l.isSteel,
+        }))
+      : phase3DInfo[p].items.map((i) => ({ ...i, priced: true, materialId: null, isSteel: false }));
     sections[p] = {
       key: p,
       label: hasReal ? phaseLabel(p) : phase3DInfo[p].label,
@@ -72,6 +87,7 @@ export function buildBoQSource(opts: {
     hasReal,
     elementsTotal,
     invalidTotal,
+    rebar: opts.rebar ?? null,
     originLabel: hasReal
       ? `Quantidades extraídas do modelo 3D carregado (${elementsTotal} elementos) × preços da Base de Preços`
       : "CASO DE ESTUDO — sem modelo 3D carregado (valores de referência, não extraídos)",

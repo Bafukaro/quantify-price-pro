@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { PhaseKey } from "@/components/three/BuildingModel";
 import { aggregateByPhase, phaseTotal, PHASES } from "@/lib/phaseQuantities";
 import { setPriceCity } from "@/data/priceDb";
+import type { RebarTakeoff } from "@/lib/rebar";
 
 export type ModelExt = "gltf" | "glb" | "obj" | "ifc";
 
@@ -306,21 +307,50 @@ export function useProjectMeshes(projectId: string): StoredMeshInfo[] {
   return projects.find((x) => x.id === projectId)?.meshes ?? [];
 }
 
-async function persistQuantities(id: string, meshes: StoredMeshInfo[], overrides: Record<string, PhaseKey>) {
+async function persistQuantities(
+  id: string,
+  meshes: StoredMeshInfo[],
+  overrides: Record<string, PhaseKey>,
+  rebar?: RebarTakeoff | null
+) {
   const p = projects.find((x) => x.id === id);
   if (!p) return;
   const { total, quantities } = computeProjectTotals({ location: p.location, meshes, overrides });
+  const keptRebar = rebar !== undefined ? rebar : ((p.quantities as any)?.rebar ?? null);
+  const q = { ...quantities, rebar: keptRebar };
   await patchProject(
     id,
-    { meshes, overrides, quantities, total_mt: Math.round(total) },
-    { meshes, overrides, quantities, totalMT: Math.round(total) }
+    { meshes, overrides, quantities: q, total_mt: Math.round(total) },
+    { meshes, overrides, quantities: q, totalMT: Math.round(total) }
   );
 }
 
-export function setProjectModelMeshes(projectId: string, meshes: StoredMeshInfo[]) {
+export function setProjectModelMeshes(
+  projectId: string,
+  meshes: StoredMeshInfo[],
+  rebar: RebarTakeoff | null = null
+) {
   const p = projects.find((x) => x.id === projectId);
   if (!p) return;
-  void persistQuantities(projectId, meshes, p.overrides);
+  void persistQuantities(projectId, meshes, p.overrides, rebar);
+}
+
+/** Takeoff de armadura persistido (IfcReinforcingBar), quando o ficheiro o continha. */
+export function useProjectRebar(projectId: string): RebarTakeoff | null {
+  useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const p = projects.find((x) => x.id === projectId);
+  return ((p?.quantities as any)?.rebar as RebarTakeoff | null) ?? null;
+}
+
+/** Percentagem de execução declarada pelo utilizador para uma fase do projecto. */
+export function setProjectPhasePct(projectId: string, phaseName: string, pct: number) {
+  const p = projects.find((x) => x.id === projectId);
+  if (!p) return;
+  const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+  const base = p.phases?.length ? p.phases : DEFAULT_PHASES;
+  const phases = base.map((f) => (f.name === phaseName ? { ...f, pct: clamped } : f));
+  const spentPct = Math.round(phases.reduce((a, f) => a + f.pct, 0) / (phases.length || 1));
+  void patchProject(projectId, { phases, spent_pct: spentPct }, { phases, spentPct });
 }
 
 export function setProjectMeshOverride(projectId: string, meshId: string, phase: PhaseKey) {

@@ -4,6 +4,8 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { loadIFC } from "@/lib/ifcLoader";
 import { computeMeshQuantity } from "@/lib/meshQuantities";
+import { buildOptimizedScene, disposeScene } from "@/lib/optimizeScene";
+import type { RebarTakeoff } from "@/lib/rebar";
 import type { PhaseKey } from "./BuildingModel";
 import { PHASE_COLORS } from "./BuildingModel";
 
@@ -100,7 +102,7 @@ export default function UploadedModel({
   visiblePhases: Set<PhaseKey>;
   overrides: Record<string, PhaseKey>;
   onSelect: (p: PhaseKey) => void;
-  onLoaded?: (meshes: MeshInfo[]) => void;
+  onLoaded?: (meshes: MeshInfo[], rebar: RebarTakeoff | null) => void;
   onError?: (msg: string) => void;
 }) {
   const [root, setRoot] = useState<THREE.Object3D | null>(null);
@@ -173,9 +175,10 @@ export default function UploadedModel({
   }, [root]);
 
   // Tag each mesh with a phase + center & scale model
-  const { tagged, meshes } = useMemo(() => {
+  const { tagged, meshes, rebar } = useMemo(() => {
     const meshes: MeshInfo[] = [];
-    if (!root) return { tagged: null, meshes };
+    const rebar = ((root?.userData as any)?.rebar as RebarTakeoff | null) ?? null;
+    if (!root) return { tagged: null, meshes, rebar: null as RebarTakeoff | null };
 
     // 1) Quantidades REAIS — calculadas nas unidades originais do ficheiro,
     //    antes de qualquer re-escala de visualização.
@@ -224,33 +227,38 @@ export default function UploadedModel({
           elementCount: ((mesh.userData as any).elementCount as number) ?? 1,
           valid: !!q.valid,
         });
-        // Clone material so we can mutate per-mesh
-        if (Array.isArray(mesh.material)) {
-          mesh.material = mesh.material.map((m) => m.clone());
-        } else if (mesh.material) {
-          mesh.material = (mesh.material as THREE.Material).clone();
-        }
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
         i++;
       }
     });
-    return { tagged: root, meshes };
+    return { tagged: root, meshes, rebar };
   }, [root]);
 
   useEffect(() => {
-    if (tagged && onLoaded) onLoaded(meshes);
+    if (tagged && onLoaded) onLoaded(meshes, rebar);
   }, [tagged]); // eslint-disable-line
+
+  // === OPTIMIZAÇÃO DE RENDER ===
+  // Uma malha merged (ou InstancedMesh) por FASE em vez de um mesh por elemento.
+  // Reduz milhares de draw calls a ~6-12, mantendo o mostrar/esconder por fase.
+  const optimized = useMemo(() => {
+    if (!tagged) return null;
+    return buildOptimizedScene(tagged, (mesh) => {
+      const id = (mesh.userData as any).meshId as string;
+      const base = (mesh.userData as any).phase as PhaseKey;
+      return overrides[id] ?? base ?? "acabamentos";
+    });
+  }, [tagged, overrides]);
+
+  useEffect(() => {
+    return () => disposeScene(optimized?.group ?? null);
+  }, [optimized]);
 
   // Apply colors / visibility based on selected & visible
   useEffect(() => {
-    if (!tagged) return;
-    tagged.traverse((child) => {
-      if (!(child as THREE.Mesh).isMesh) return;
+    if (!optimized) return;
+    optimized.group.children.forEach((child) => {
       const mesh = child as THREE.Mesh;
-      const baseId = (mesh.userData as any).meshId as string;
-      const basePhase = (mesh.userData as any).phase as PhaseKey;
-      const phase = overrides[baseId] ?? basePhase;
+      const phase = (mesh.userData as any).phase as PhaseKey;
       const visible = visiblePhases.has(phase);
       mesh.visible = visible;
       const isSel = selected === phase;
@@ -266,18 +274,17 @@ export default function UploadedModel({
       if (Array.isArray(mesh.material)) mesh.material.forEach(apply);
       else if (mesh.material) apply(mesh.material as THREE.Material);
     });
-  }, [tagged, selected, visiblePhases, overrides]);
+  }, [optimized, selected, visiblePhases]);
 
-  if (!tagged) return null;
+  if (!optimized) return null;
 
   return (
     <primitive
-      object={tagged}
+      object={optimized.group}
       onPointerDown={(e: any) => {
         e.stopPropagation();
         const ud = (e.object?.userData as any) || {};
-        const id = ud.meshId as string | undefined;
-        const p = (id && overrides[id]) || (ud.phase as PhaseKey | undefined);
+        const p = ud.phase as PhaseKey | undefined;
         if (p) onSelect(p);
       }}
     />
