@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { extractRebar } from "./rebar";
 
 // Cache the initialized IfcAPI across calls to avoid re-instantiating WASM.
-let ifcApiPromise: Promise<any> | null = null;
+let ifcApiPromise: Promise<{ api: any; WebIFC: any }> | null = null;
 
 async function getIfcApi() {
   if (!ifcApiPromise) {
@@ -12,7 +13,7 @@ async function getIfcApi() {
       // WASM served from /public/wasm/ (see public/wasm/web-ifc.wasm)
       api.SetWasmPath("/wasm/");
       await api.Init();
-      return api;
+      return { api, WebIFC };
     })();
   }
   return ifcApiPromise;
@@ -24,7 +25,7 @@ async function getIfcApi() {
  * (in UploadedModel) can map IFCCOLUMN/IFCSLAB/... to construction phases.
  */
 export async function loadIFC(url: string): Promise<THREE.Group> {
-  const api = await getIfcApi();
+  const { api, WebIFC } = await getIfcApi();
   let buf: ArrayBuffer | null = await fetch(url).then((r) => r.arrayBuffer());
   let bytes: Uint8Array | null = new Uint8Array(buf);
   const modelID: number = api.OpenModel(bytes);
@@ -110,6 +111,14 @@ export async function loadIFC(url: string): Promise<THREE.Group> {
     flatMesh.delete?.();
   });
 
+  // Takeoff real de armadura (IfcReinforcingBar), quando modelada no ficheiro.
+  let rebar: ReturnType<typeof extractRebar> = null;
+  try {
+    rebar = extractRebar(api, modelID, WebIFC);
+  } catch {
+    rebar = null;
+  }
+
   api.CloseModel(modelID);
 
   let invalidElements = 0;
@@ -155,6 +164,6 @@ export async function loadIFC(url: string): Promise<THREE.Group> {
   // Rotate whole model from IFC Z-up → three.js Y-up.
   group.rotation.x = -Math.PI / 2;
   group.updateMatrixWorld(true);
-  group.userData = { ...group.userData, invalidElements, source: "ifc" };
+  group.userData = { ...group.userData, invalidElements, source: "ifc", rebar };
   return group;
 }

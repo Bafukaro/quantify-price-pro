@@ -18,6 +18,7 @@ import {
   setProjectModelMeshes,
   setProjectMeshOverride,
   useProjects,
+  useProjectRebar,
 } from "@/data/store";
 import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle, Download, FileSpreadsheet } from "lucide-react";
 
@@ -37,6 +38,7 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
   const uploaded = useProjectModel(projectId);
   const overrides = useProjectOverrides(projectId) as Record<string, PhaseKey>;
   const meshes = useProjectMeshes(projectId) as MeshInfo[];
+  const rebar = useProjectRebar(projectId);
 
   const [selected, setSelected] = useState<PhaseKey | null>(null);
   const [visible, setVisible] = useState<Set<Phase3D>>(new Set(ALL));
@@ -88,8 +90,8 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
 
   // === Fonte única: quantidades reais extraídas da malha (ou caso de estudo) ===
   const boq = useMemo(
-    () => buildBoQSource({ location: project?.location, meshes, overrides }),
-    [project?.location, meshes, overrides]
+    () => buildBoQSource({ location: project?.location, meshes, overrides, rebar }),
+    [project?.location, meshes, overrides, rebar]
   );
   const hasReal = boq.hasReal;
   const extraction = { elementsTotal: boq.elementsTotal, invalidTotal: boq.invalidTotal };
@@ -197,7 +199,7 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                 </div>
               </div>
             )}
-            <Canvas shadows dpr={[1, 2]}>
+            <Canvas shadows={!uploaded} dpr={uploaded ? [1, 1.5] : [1, 2]}>
               <PerspectiveCamera makeDefault position={[18, 14, 22]} fov={42} />
               <LocalLightRig />
               <SafeEnvironment
@@ -213,8 +215,8 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                     selected={selected}
                     visiblePhases={visible}
                     overrides={overrides}
-                    onLoaded={(m) => {
-                      setProjectModelMeshes(projectId, m);
+                    onLoaded={(m, rb) => {
+                      setProjectModelMeshes(projectId, m, rb);
                       if (m.length === 0) {
                         setLoadError("Modelo carregado mas sem geometria (0 meshes).");
                         setLoadState("error");
@@ -235,7 +237,9 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                     visiblePhases={visible}
                   />
                 )}
-                <ContactShadows position={[0, -0.79, 0]} opacity={0.35} blur={2.5} far={20} />
+                {!uploaded && (
+                  <ContactShadows position={[0, -0.79, 0]} opacity={0.35} blur={2.5} far={20} />
+                )}
               </Suspense>
               </SceneErrorBoundary>
               <OrbitControls
@@ -406,6 +410,60 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
               )}
             </div>
           )}
+
+          {/* Armadura — takeoff real (IfcReinforcingBar) ou estimativa por rácio */}
+          {hasReal && (
+            <div className="rounded-xl bg-surface-elevated border border-border shadow-soft p-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                Armadura (aço)
+              </div>
+              {rebar ? (
+                <>
+                  <div className="mt-2 text-[10px]">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 text-success px-2 py-0.5">
+                      Extraída do ficheiro — IfcReinforcingBar
+                    </span>
+                  </div>
+                  <table className="mt-3 w-full text-xs">
+                    <thead className="text-muted-foreground uppercase text-[10px] tracking-wider">
+                      <tr>
+                        <th className="text-left py-1">Ø</th>
+                        <th className="text-right py-1">Varões</th>
+                        <th className="text-right py-1">Compr.</th>
+                        <th className="text-right py-1">Massa</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-mono">
+                      {rebar.byDiameter.map((r) => (
+                        <tr key={r.diameterMm} className="border-t border-border">
+                          <td className="py-1">Ø{r.diameterMm}</td>
+                          <td className="py-1 text-right">{r.bars.toLocaleString("pt-PT")}</td>
+                          <td className="py-1 text-right">{r.lengthM.toLocaleString("pt-PT", { maximumFractionDigits: 0 })} m</td>
+                          <td className="py-1 text-right">{r.massKg.toLocaleString("pt-PT", { maximumFractionDigits: 0 })} kg</td>
+                        </tr>
+                      ))}
+                      <tr className="border-t-2 border-accent/30">
+                        <td className="py-1.5 font-medium">Total</td>
+                        <td className="py-1.5 text-right">{rebar.totalBars.toLocaleString("pt-PT")}</td>
+                        <td className="py-1.5 text-right">{rebar.totalLengthM.toLocaleString("pt-PT", { maximumFractionDigits: 0 })} m</td>
+                        <td className="py-1.5 text-right text-accent">{rebar.totalMassKg.toLocaleString("pt-PT", { maximumFractionDigits: 0 })} kg</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </>
+              ) : (
+                <div className="mt-2 text-[11px] leading-snug">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 text-warning px-2 py-0.5 text-[10px]">
+                    Estimativa por rácio
+                  </span>
+                  <div className="mt-1.5 text-muted-foreground">
+                    O ficheiro não contém armadura modelada (IfcReinforcingBar). As quantidades de
+                    aço são estimadas por rácio kg/m³ de betão, por fase — não são extracção directa.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </aside>
       </div>
 
@@ -449,7 +507,16 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
               {info.lines.map((i) => (
                 <tr key={i.item} className="hover:bg-muted/30">
                   <td className="px-4 py-2.5 font-mono">{i.item}</td>
-                  <td className="px-4 py-2.5">{i.desc}</td>
+                  <td className="px-4 py-2.5">
+                    {i.desc}
+                    {i.isSteel && (
+                      <div className={`text-[10px] ${rebar ? "text-success" : "text-warning"}`}>
+                        {rebar
+                          ? "armadura modelada disponível no ficheiro — ver desagregação por diâmetro"
+                          : "estimativa por rácio (sem armadura modelada no ficheiro)"}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5 text-right text-muted-foreground">{i.un}</td>
                   <td className="px-4 py-2.5 text-right font-mono">
                     {i.qty.toLocaleString("pt-PT", { maximumFractionDigits: 2 })}

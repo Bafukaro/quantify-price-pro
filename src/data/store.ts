@@ -1,5 +1,4 @@
 import { useSyncExternalStore } from "react";
-import { auditEntries } from "./mock";
 
 export * from "./projects";
 
@@ -26,6 +25,16 @@ function saveLS<T>(key: string, value: T) {
   }
 }
 
+export type AuditEntry = {
+  dt: string;
+  user: string;
+  item: string;
+  from: string;
+  to: string;
+  delta: number;
+  just: string;
+};
+
 export type Priority = "alta" | "media" | "baixa";
 export type DailyTask = {
   id: string;
@@ -39,23 +48,29 @@ export type DailyTask = {
   due?: string;
 };
 
-const initialTasks: DailyTask[] = [
-  { id: "t1", projectId: "p-001", due: "2026-05-09", name: "Receber cotação ferro Ø10mm — Forn. B", assignee: "Eng. Tomás", phase: "Estrutura", priority: "alta", done: false, createdAt: "2026-05-07" },
-  { id: "t2", projectId: "p-001", due: "2026-05-08", name: "Verificar betonagem fundações bloco C", assignee: "Cláudia M.", phase: "Estrutura", priority: "alta", done: false, createdAt: "2026-05-07" },
-  { id: "t3", projectId: "p-001", due: "2026-05-10", name: "Actualizar preço cimento Portland na base", assignee: "Eng. Tomás", phase: "Preliminares", priority: "media", done: true, createdAt: "2026-05-07" },
-  { id: "t4", projectId: "p-001", due: "2026-05-12", name: "Aprovar BoQ Fase 2 — Alvenaria", assignee: "Cláudia M.", phase: "Alvenaria", priority: "alta", done: false, createdAt: "2026-05-07" },
-  { id: "t5", projectId: "p-002", due: "2026-05-09", name: "Fotografar tabelão Fornecedor C", assignee: "Eng. Tomás", phase: "Instalações", priority: "baixa", done: false, createdAt: "2026-05-06" },
-  { id: "t6", projectId: "p-002", due: "2026-05-11", name: "Conferir ordem entrega cabos eléctricos", assignee: "Cláudia M.", phase: "Instalações", priority: "media", done: false, createdAt: "2026-05-05" },
-  { id: "t7", projectId: "p-001", due: "2026-05-08", name: "Vistoria armaduras pilares P3-P5", assignee: "Eng. Tomás", phase: "Estrutura", priority: "alta", done: false, createdAt: "2026-05-05" },
-  { id: "t8", projectId: "p-002", due: "2026-05-15", name: "Recepção de chapas para cobertura", assignee: "Eng. Tomás", phase: "Cobertura", priority: "media", done: false, createdAt: "2026-05-06" },
-];
+// Sem histórico fabricado: tudo começa vazio e só regista acções reais do utilizador.
+const initialTasks: DailyTask[] = [];
 
 let tasks: DailyTask[] = loadLS<DailyTask[]>(TASKS_KEY, initialTasks);
-let audit = loadLS<typeof auditEntries>(AUDIT_KEY, auditEntries);
+
+// O audit log é isolado por conta autenticada — nunca partilhado nem pré-populado.
+let auditUser = "—";
+let auditKey = AUDIT_KEY;
+let audit: AuditEntry[] = [];
+
+/** Liga o audit log à conta autenticada (chamado pelo AuthProvider). */
+export function setAuditUser(email: string | null) {
+  auditUser = email ?? "—";
+  auditKey = email ? `${AUDIT_KEY}.${email}` : AUDIT_KEY;
+  audit = loadLS<AuditEntry[]>(auditKey, []);
+  listeners.forEach((l) => l());
+}
+export const currentAuditUser = () => auditUser;
+
 const listeners = new Set<() => void>();
 const persist = () => {
   saveLS(TASKS_KEY, tasks);
-  saveLS(AUDIT_KEY, audit);
+  saveLS(auditKey, audit);
   saveLS(QUOTES_KEY, quotes);
   saveLS(RISK_KEY, risks);
 };
@@ -71,7 +86,7 @@ const subscribe = (l: () => void) => {
 export function useTasks() {
   return useSyncExternalStore(subscribe, () => tasks, () => tasks);
 }
-export function pushAudit(entry: (typeof auditEntries)[number]) {
+export function pushAudit(entry: AuditEntry) {
   audit = [entry, ...audit];
   emit();
 }
@@ -87,7 +102,7 @@ const nowStamp = () => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-export function toggleTask(id: string, user = "Cláudia M. (Gestor)") {
+export function toggleTask(id: string, user = auditUser) {
   tasks = tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t));
   const t = tasks.find((x) => x.id === id);
   if (t && t.done) {
@@ -114,7 +129,7 @@ export function useQuotes() {
 export function addQuote(q: QuickQuote) {
   quotes = [q, ...quotes];
   audit = [
-    { dt: nowStamp(), user: "Eng. Tomás R.", item: `Cotação rápida — ${q.material}`, from: "—", to: `${q.price} MT (${q.supplier})`, delta: 0, just: q.hasPhoto ? "Foto do tabelão anexa" : "Entrada manual mobile" },
+    { dt: nowStamp(), user: auditUser, item: `Cotação rápida — ${q.material}`, from: "—", to: `${q.price} MT (${q.supplier})`, delta: 0, just: q.hasPhoto ? "Foto do tabelão anexa" : "Entrada manual mobile" },
     ...audit,
   ];
   emit();
@@ -122,7 +137,7 @@ export function addQuote(q: QuickQuote) {
 
 export function resetStore() {
   tasks = [...initialTasks];
-  audit = [...auditEntries];
+  audit = [];
   quotes = [];
   risks = [];
   emit();
@@ -182,7 +197,7 @@ export function justifyRisk(id: string, reason: RiskReason, observation: string)
   emit();
 }
 
-export function decideRisk(id: string, status: "aprovado" | "rejeitado", user = "Cláudia M. (Gestor)") {
+export function decideRisk(id: string, status: "aprovado" | "rejeitado", user = auditUser) {
   const r = risks.find((x) => x.id === id);
   if (!r) return;
   risks = risks.map((x) => (x.id === id ? { ...x, status, decidedBy: user, decidedAt: nowStamp() } : x));

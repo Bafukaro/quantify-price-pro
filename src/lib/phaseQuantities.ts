@@ -62,6 +62,8 @@ export type QtyLine = {
   materialId: string;
   priced: boolean;
   basis: string;
+  /** linha de aço — sujeita a rótulo "estimativa por rácio" quando não há armadura modelada */
+  isSteel: boolean;
 };
 
 type Recipe = { materialId: string; desc: string; factor: number; basis: "volume" | "area" };
@@ -143,6 +145,7 @@ export function phaseLines(phase: PhaseKey, qty: PhaseQty): QtyLine[] {
       preco,
       materialId: r.materialId,
       priced: !!mat && preco > 0,
+      isSteel: /aco|aço/i.test(r.materialId),
       basis: r.basis === "volume" ? `${qty.volumeM3.toFixed(2)} m³ extraídos` : `${area.toFixed(2)} m² extraídos`,
     };
   });
