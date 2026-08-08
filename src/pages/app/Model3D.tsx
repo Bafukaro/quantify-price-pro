@@ -47,6 +47,8 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hdrEnabled, setHdrEnabled] = useState(false);
   const [sceneWarning, setSceneWarning] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ stage: string; elements: number } | null>(null);
+  const [rotSteps, setRotSteps] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const togglePhase = (p: Phase3D) => {
@@ -77,6 +79,7 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
     setVisible(new Set(ALL));
     setLoadError(null);
     setLoadState("loading");
+    setProgress(null);
     const err = await uploadProjectModel(projectId, f);
     if (err) {
       setLoadError(err);
