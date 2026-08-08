@@ -238,8 +238,11 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                     selected={selected}
                     visiblePhases={visible}
                     overrides={overrides}
+                    rotationX={(rotSteps * Math.PI) / 2}
+                    onProgress={(p) => setProgress(p)}
                     onLoaded={(m, rb) => {
                       setProjectModelMeshes(projectId, m, rb);
+                      setProgress(null);
                       if (m.length === 0) {
                         setLoadError("Modelo carregado mas sem geometria (0 meshes).");
                         setLoadState("error");
