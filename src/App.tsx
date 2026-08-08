@@ -20,6 +20,7 @@ import Compliance from "./pages/app/Compliance.tsx";
 import Workflow from "./pages/app/Workflow.tsx";
 import CaseStudy from "./pages/app/CaseStudy.tsx";
 import Reports from "./pages/app/Reports.tsx";
+import Diagnostics from "./pages/app/Diagnostics.tsx";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="workflow" element={<Workflow />} />
             <Route path="caso-estudo" element={<CaseStudy />} />
             <Route path="relatorios" element={<Reports />} />
+            <Route path="diagnostico" element={<Diagnostics />} />
             <Route path="auditoria" element={<Audit />} />
             <Route path="cronograma" element={<Schedule />} />
           </Route>
