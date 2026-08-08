@@ -167,10 +167,29 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
             {uploaded && loadState === "loading" && (
               <div className="absolute top-4 left-4 z-10 pointer-events-none flex items-center gap-2 rounded-md bg-background/80 backdrop-blur border border-border px-3 py-1.5 text-xs text-muted-foreground shadow-soft">
                 <div className="size-3.5 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-                A processar {uploaded.name}…
+                {progress
+                  ? `${
+                      progress.stage === "download"
+                        ? "A obter ficheiro"
+                        : progress.stage === "parse"
+                        ? "A interpretar IFC"
+                        : progress.stage === "merge"
+                        ? "A optimizar geometria"
+                        : "A extrair geometria"
+                    }${progress.elements ? ` · ${progress.elements} elementos` : ""}…`
+                  : `A processar ${uploaded.name}…`}
               </div>
             )}
             <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-1.5">
+              {uploaded && (
+                <button
+                  onClick={() => setRotSteps((s) => (s + 1) % 4)}
+                  className="rounded-md border border-border bg-background/80 text-muted-foreground px-2.5 py-1.5 text-[11px] font-medium backdrop-blur hover:bg-muted"
+                  title="Corrigir orientação (rodar 90° no eixo X)"
+                >
+                  Orientação: {rotSteps * 90}°
+                </button>
+              )}
               <button
                 onClick={() => setHdrEnabled((v) => !v)}
                 className={`rounded-md border px-2.5 py-1.5 text-[11px] font-medium backdrop-blur transition ${
