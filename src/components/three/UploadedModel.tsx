@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
-import { loadIFC } from "@/lib/ifcLoader";
+import { loadIFC, type IfcProgress } from "@/lib/ifcLoader";
 import { computeMeshQuantity } from "@/lib/meshQuantities";
 import { buildOptimizedScene, disposeScene } from "@/lib/optimizeScene";
 import type { RebarTakeoff } from "@/lib/rebar";
@@ -95,6 +95,8 @@ export default function UploadedModel({
   onSelect,
   onLoaded,
   onError,
+  onProgress,
+  rotationX = 0,
 }: {
   url: string;
   ext: "gltf" | "glb" | "obj" | "ifc";
@@ -104,6 +106,9 @@ export default function UploadedModel({
   onSelect: (p: PhaseKey) => void;
   onLoaded?: (meshes: MeshInfo[], rebar: RebarTakeoff | null) => void;
   onError?: (msg: string) => void;
+  onProgress?: (p: IfcProgress) => void;
+  /** Correcção manual de orientação (radianos, eixo X). */
+  rotationX?: number;
 }) {
   const [root, setRoot] = useState<THREE.Object3D | null>(null);
 
@@ -141,7 +146,7 @@ export default function UploadedModel({
           );
         } else if (ext === "ifc") {
           try {
-            const grp = await loadIFC(url);
+            const grp = await loadIFC(url, (p) => active && onProgress?.(p));
             if (active) setRoot(grp);
             else disposeSubtree(grp);
           } catch (err: any) {
@@ -186,7 +191,10 @@ export default function UploadedModel({
     root.traverse((child) => {
       const mesh = child as THREE.Mesh;
       if (!mesh.isMesh) return;
-      (mesh.userData as any).qty = computeMeshQuantity(mesh);
+      // IFC: quantidades já vêm calculadas do worker — não repetir na UI thread.
+      if (!(mesh.userData as any).qty) {
+        (mesh.userData as any).qty = computeMeshQuantity(mesh);
+      }
     });
 
     // Center + uniform scale to ~10 units max dimension
@@ -281,6 +289,7 @@ export default function UploadedModel({
   return (
     <primitive
       object={optimized.group}
+      rotation-x={rotationX}
       onPointerDown={(e: any) => {
         e.stopPropagation();
         const ud = (e.object?.userData as any) || {};
