@@ -7,6 +7,7 @@ import {
   Search,
   Building2,
   LogOut,
+  Gauge,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -14,11 +15,13 @@ const nav = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/app/projecto/p-001", label: "Projecto · BoQ", icon: FolderKanban },
   { to: "/app/precos", label: "Base de Preços", icon: Database },
+  { to: "/app/diagnostico", label: "Diagnóstico 3D", icon: Gauge },
 ];
 
 const titles: Record<string, string> = {
   "/app": "Dashboard — Visão geral dos projectos",
   "/app/precos": "Base de Dados de Preços",
+  "/app/diagnostico": "Diagnóstico de Desempenho — Render 3D",
 };
 
 export default function AppLayout() {

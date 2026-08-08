@@ -10,6 +10,7 @@ import { phase3DInfo, fmtMT, type Phase3D } from "@/data/mock";
 import { setPriceCity } from "@/data/priceDb";
 import { buildBoQSource } from "@/lib/boqSource";
 import { exportPhaseExcel, exportPhasePDF } from "@/lib/exports";
+import { exportRebarExcel, exportRebarPDF } from "@/lib/rebarExports";
 import {
   useProjectModel,
   useProjectOverrides,
@@ -450,6 +451,24 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                       </tr>
                     </tbody>
                   </table>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() =>
+                        exportRebarExcel(project?.name ?? "Projecto", rebar, selected ? phaseData[selected].label : undefined)
+                      }
+                      className="inline-flex items-center gap-1.5 border border-border px-2.5 py-1.5 rounded-md text-[11px] hover:bg-muted"
+                    >
+                      <FileSpreadsheet className="size-3.5" /> Armadura (Excel)
+                    </button>
+                    <button
+                      onClick={() =>
+                        exportRebarPDF(project?.name ?? "Projecto", rebar, selected ? phaseData[selected].label : undefined)
+                      }
+                      className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-2.5 py-1.5 rounded-md text-[11px] font-medium hover:opacity-90"
+                    >
+                      <Download className="size-3.5" /> Armadura (PDF)
+                    </button>
+                  </div>
                 </>
               ) : (
                 <div className="mt-2 text-[11px] leading-snug">
