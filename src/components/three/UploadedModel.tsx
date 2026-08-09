@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
-import { loadIFC, type IfcProgress } from "@/lib/ifcLoader";
+import { loadIFC, IfcLoadError, type IfcProgress, type IfcWorkerMetrics } from "@/lib/ifcLoader";
 import { computeMeshQuantity } from "@/lib/meshQuantities";
 import { buildOptimizedScene, disposeScene } from "@/lib/optimizeScene";
 import type { RebarTakeoff } from "@/lib/rebar";
@@ -96,6 +96,8 @@ export default function UploadedModel({
   onLoaded,
   onError,
   onProgress,
+  onMetrics,
+  reloadKey = 0,
   rotationX = 0,
 }: {
   url: string;
@@ -105,8 +107,11 @@ export default function UploadedModel({
   overrides: Record<string, PhaseKey>;
   onSelect: (p: PhaseKey) => void;
   onLoaded?: (meshes: MeshInfo[], rebar: RebarTakeoff | null) => void;
-  onError?: (msg: string) => void;
+  onError?: (msg: string, detail?: string, stage?: string) => void;
   onProgress?: (p: IfcProgress) => void;
+  onMetrics?: (m: IfcWorkerMetrics) => void;
+  /** Incrementar para forçar nova tentativa de carregamento. */
+  reloadKey?: number;
   /** Correcção manual de orientação (radianos, eixo X). */
   rotationX?: number;
 }) {
@@ -146,11 +151,22 @@ export default function UploadedModel({
           );
         } else if (ext === "ifc") {
           try {
-            const grp = await loadIFC(url, (p) => active && onProgress?.(p));
+            const grp = await loadIFC(
+              url,
+              (p) => active && onProgress?.(p),
+              (m) => active && onMetrics?.(m)
+            );
             if (active) setRoot(grp);
             else disposeSubtree(grp);
           } catch (err: any) {
-            if (active) onError?.(`Falha ao carregar IFC: ${err?.message ?? "ficheiro inválido"}`);
+            if (active) {
+              const isIfc = err instanceof IfcLoadError;
+              onError?.(
+                err?.message ?? "Ficheiro IFC inválido",
+                isIfc ? err.detail : undefined,
+                isIfc ? err.stage : undefined
+              );
+            }
           }
         } else {
           const loader = new GLTFLoader();
@@ -170,7 +186,7 @@ export default function UploadedModel({
     return () => {
       active = false;
     };
-  }, [url, ext, onError]);
+  }, [url, ext, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Whenever `root` is replaced OR the component unmounts, dispose the previous
   // scene tree. Without this, every re-upload / project switch leaks GPU
