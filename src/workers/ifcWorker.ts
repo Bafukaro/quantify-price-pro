@@ -26,6 +26,20 @@ export type IfcClassPayload = {
   triangles: number;
 };
 
+/** Métricas de diagnóstico do worker (tempos por etapa, buffers, contagens). */
+export type IfcWorkerMetrics = {
+  fileBytes: number;
+  elements: number;
+  classes: number;
+  vertices: number;
+  triangles: number;
+  invalid: number;
+  /** bytes transferidos para a thread principal (positions+normals+indices) */
+  transferBytes: number;
+  stages: { stage: string; ms: number }[];
+  totalMs: number;
+};
+
 type Bucket = {
   posChunks: Float32Array[];
   normChunks: Float32Array[];
@@ -58,16 +72,46 @@ function post(msg: any, transfer?: Transferable[]) {
   (self as any).postMessage(msg, transfer ?? []);
 }
 
+/** Cronómetro simples por etapa. */
+function createTimer() {
+  const stages: { stage: string; ms: number }[] = [];
+  const t0 = performance.now();
+  let last = t0;
+  let current = "init";
+  return {
+    mark(next: string) {
+      const now = performance.now();
+      stages.push({ stage: current, ms: +(now - last).toFixed(1) });
+      last = now;
+      current = next;
+    },
+    finish() {
+      const now = performance.now();
+      stages.push({ stage: current, ms: +(now - last).toFixed(1) });
+      return { stages, totalMs: +(now - t0).toFixed(1) };
+    },
+    get stage() {
+      return current;
+    },
+  };
+}
+
 async function run(url: string) {
+  const timer = createTimer();
+  let fileBytes = 0;
   const { api, WebIFC } = await getApi();
+  timer.mark("download");
   post({ type: "progress", stage: "download", elements: 0 });
 
   const buf = await fetch(url).then((r) => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.arrayBuffer();
   });
+  fileBytes = buf.byteLength;
+  timer.mark("parse");
   post({ type: "progress", stage: "parse", elements: 0 });
   const modelID: number = api.OpenModel(new Uint8Array(buf));
+  timer.mark("geometry");
 
   const buckets = new Map<string, Bucket>();
   let processed = 0;
@@ -187,6 +231,7 @@ async function run(url: string) {
   });
 
   post({ type: "progress", stage: "merge", elements: processed });
+  timer.mark("rebar");
 
   let rebar: RebarTakeoff | null = null;
   try {
@@ -195,9 +240,14 @@ async function run(url: string) {
     rebar = null;
   }
   api.CloseModel(modelID);
+  timer.mark("merge");
 
   const classes: IfcClassPayload[] = [];
   const transfer: Transferable[] = [];
+  let vertices = 0;
+  let triangles = 0;
+  let invalid = 0;
+  let transferBytes = 0;
   buckets.forEach((b, ifcClass) => {
     if (b.vertexTotal === 0) return;
     const positions = new Float32Array(b.vertexTotal * 3);
@@ -212,6 +262,10 @@ async function run(url: string) {
       io += b.idxChunks[i].length;
     }
     b.posChunks.length = 0; b.normChunks.length = 0; b.idxChunks.length = 0;
+    vertices += b.vertexTotal;
+    triangles += b.triangles;
+    invalid += b.invalid;
+    transferBytes += positions.byteLength + normals.byteLength + indices.byteLength;
     classes.push({
       ifcClass,
       positions, normals, indices,
@@ -225,10 +279,31 @@ async function run(url: string) {
     transfer.push(positions.buffer, normals.buffer, indices.buffer);
   });
 
-  post({ type: "result", classes, rebar, elements: processed }, transfer);
+  const { stages, totalMs } = timer.finish();
+  const metrics: IfcWorkerMetrics = {
+    fileBytes,
+    elements: processed,
+    classes: classes.length,
+    vertices,
+    triangles,
+    invalid,
+    transferBytes,
+    stages,
+    totalMs,
+  };
+  post({ type: "result", classes, rebar, elements: processed, metrics }, transfer);
 }
 
 self.onmessage = (e: MessageEvent) => {
   const { url } = e.data ?? {};
-  run(url).catch((err) => post({ type: "error", message: err?.message ?? "Falha ao processar IFC" }));
+  run(url).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error("[ifcWorker] falhou", err);
+    post({
+      type: "error",
+      message: err?.message ?? "Falha ao processar IFC",
+      name: err?.name ?? "Error",
+      stack: typeof err?.stack === "string" ? String(err.stack).slice(0, 1500) : undefined,
+    });
+  });
 };
