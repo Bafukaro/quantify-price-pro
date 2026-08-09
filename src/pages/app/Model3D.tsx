@@ -21,7 +21,20 @@ import {
   useProjects,
   useProjectRebar,
 } from "@/data/store";
-import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle, Download, FileSpreadsheet } from "lucide-react";
+import type { IfcWorkerMetrics } from "@/lib/ifcLoader";
+import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle, Download, FileSpreadsheet, Activity, RefreshCw } from "lucide-react";
+
+const STAGE_LABELS: Record<string, string> = {
+  init: "Arranque WASM",
+  download: "Descarregar ficheiro",
+  parse: "Interpretar IFC",
+  geometry: "Extrair geometria",
+  rebar: "Takeoff de armadura",
+  merge: "Merge/optimização",
+};
+
+const fmtBytes = (b: number) =>
+  b > 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
 
 const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "acabamentos"];
 
@@ -48,8 +61,20 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
   const [hdrEnabled, setHdrEnabled] = useState(false);
   const [sceneWarning, setSceneWarning] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ stage: string; elements: number } | null>(null);
+  const [errorDetail, setErrorDetail] = useState<{ detail?: string; stage?: string } | null>(null);
+  const [metrics, setMetrics] = useState<IfcWorkerMetrics | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [rotSteps, setRotSteps] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const retryLoad = () => {
+    setLoadError(null);
+    setErrorDetail(null);
+    setMetrics(null);
+    setProgress(null);
+    setLoadState("loading");
+    setReloadKey((k) => k + 1);
+  };
 
   const togglePhase = (p: Phase3D) => {
     setVisible((prev) => {
@@ -78,6 +103,8 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
     setSelected(null);
     setVisible(new Set(ALL));
     setLoadError(null);
+    setErrorDetail(null);
+    setMetrics(null);
     setLoadState("loading");
     setProgress(null);
     const err = await uploadProjectModel(projectId, f);
