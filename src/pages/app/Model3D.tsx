@@ -411,6 +411,43 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
           </div>
 
           {/* Selected phase detail */}
+          {metrics && (
+            <div className="rounded-xl bg-surface-elevated border border-border shadow-soft p-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground flex items-center gap-1.5">
+                <Activity className="size-3" /> Métricas do worker IFC
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-mono">
+                <div><div className="text-[9px] uppercase text-muted-foreground">Ficheiro</div>{fmtBytes(metrics.fileBytes)}</div>
+                <div><div className="text-[9px] uppercase text-muted-foreground">Tempo total</div>{(metrics.totalMs / 1000).toFixed(2)} s</div>
+                <div><div className="text-[9px] uppercase text-muted-foreground">Elementos</div>{metrics.elements}</div>
+                <div><div className="text-[9px] uppercase text-muted-foreground">Classes IFC</div>{metrics.classes}</div>
+                <div><div className="text-[9px] uppercase text-muted-foreground">Vértices</div>{metrics.vertices.toLocaleString("pt-PT")}</div>
+                <div><div className="text-[9px] uppercase text-muted-foreground">Triângulos</div>{metrics.triangles.toLocaleString("pt-PT")}</div>
+                <div><div className="text-[9px] uppercase text-muted-foreground">Buffers transferidos</div>{fmtBytes(metrics.transferBytes)}</div>
+                <div><div className="text-[9px] uppercase text-muted-foreground">Geometria inválida</div>{metrics.invalid}</div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-border space-y-1.5">
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground">Tempo por etapa</div>
+                {metrics.stages.map((s) => {
+                  const pct = Math.min(100, (s.ms / Math.max(metrics.totalMs, 1)) * 100);
+                  return (
+                    <div key={s.stage} className="space-y-0.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span>{STAGE_LABELS[s.stage] ?? s.stage}</span>
+                        <span className="font-mono text-muted-foreground">
+                          {s.ms >= 1000 ? `${(s.ms / 1000).toFixed(2)} s` : `${s.ms.toFixed(0)} ms`}
+                        </span>
+                      </div>
+                      <div className="h-1 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {info && (
             <div className="rounded-xl bg-primary text-primary-foreground shadow-elegant p-5 animate-fade-in">
               <div className="text-[10px] uppercase tracking-[0.2em] text-white/60">
