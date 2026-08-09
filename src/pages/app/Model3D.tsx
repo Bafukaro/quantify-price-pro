@@ -236,16 +236,37 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
             </div>
             {loadState === "error" && (
               <div className="absolute inset-0 z-10 grid place-items-center bg-background/85 p-6">
-                <div className="max-w-sm text-center space-y-3">
+                <div className="max-w-md text-center space-y-3">
                   <AlertTriangle className="size-8 text-destructive mx-auto" />
                   <div className="font-medium">Não foi possível abrir o modelo</div>
                   <div className="text-xs text-muted-foreground">{loadError}</div>
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    className="inline-flex items-center gap-2 border border-border px-3 py-1.5 rounded-md text-xs hover:bg-muted"
-                  >
-                    <Upload className="size-3.5" /> Escolher outro ficheiro
-                  </button>
+                  {errorDetail?.stage && (
+                    <div className="text-[11px] text-muted-foreground">
+                      Etapa que falhou:{" "}
+                      <span className="font-mono">
+                        {STAGE_LABELS[errorDetail.stage] ?? errorDetail.stage}
+                      </span>
+                    </div>
+                  )}
+                  {errorDetail?.detail && (
+                    <pre className="text-left text-[10px] font-mono bg-muted/60 border border-border rounded-md p-2 max-h-24 overflow-auto whitespace-pre-wrap">
+                      {errorDetail.detail}
+                    </pre>
+                  )}
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      onClick={retryLoad}
+                      className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-xs font-medium hover:opacity-90"
+                    >
+                      <RefreshCw className="size-3.5" /> Tentar novamente
+                    </button>
+                    <button
+                      onClick={() => fileRef.current?.click()}
+                      className="inline-flex items-center gap-2 border border-border px-3 py-1.5 rounded-md text-xs hover:bg-muted"
+                    >
+                      <Upload className="size-3.5" /> Escolher outro ficheiro
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -266,7 +287,9 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                     visiblePhases={visible}
                     overrides={overrides}
                     rotationX={(rotSteps * Math.PI) / 2}
+                    reloadKey={reloadKey}
                     onProgress={(p) => setProgress(p)}
+                    onMetrics={(m) => setMetrics(m)}
                     onLoaded={(m, rb) => {
                       setProjectModelMeshes(projectId, m, rb);
                       setProgress(null);
@@ -277,8 +300,9 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                         setLoadState("ready");
                       }
                     }}
-                    onError={(msg) => {
+                    onError={(msg, detail, stage) => {
                       setLoadError(msg);
+                      setErrorDetail({ detail, stage });
                       setLoadState("error");
                     }}
                     onSelect={(p) => focusPhase(p)}
