@@ -573,8 +573,10 @@ function DetailedPhaseTable({ sec }: { sec: DetailedPhase }) {
 /**
  * Progresso real: cada fase tem um "% concluído" declarado pelo utilizador e
  * persistido no projecto. Nada é fixo nem inventado.
- * Caminho crítico = sequência de fases ainda por concluir (a partir da primeira
- * incompleta) — é o que determina a data de conclusão.
+ * Caminho crítico = apenas a(s) fase(s) que estão de facto a bloquear a
+ * conclusão — a frente de trabalho activa (fase em curso) ou, se nada estiver
+ * em curso, a próxima fase que já ficou desbloqueada por uma fase concluída.
+ * Se o projecto ainda não arrancou (todas a 0%), não há caminho crítico.
  */
 function CronogramaView({ project }: { project: ProjectRecord }) {
   const phases = project.phases?.length ? project.phases : [];
@@ -588,13 +590,22 @@ function CronogramaView({ project }: { project: ProjectRecord }) {
     );
   }
 
+  const started = phases.some((f) => f.pct > 0);
+  // Fases em curso (0 < pct < 100) bloqueiam a conclusão.
+  const inProgress = phases.map((f, i) => (f.pct > 0 && f.pct < 100 ? i : -1)).filter((i) => i >= 0);
   const firstIncomplete = phases.findIndex((f) => f.pct < 100);
-  const isCritical = (i: number) => firstIncomplete >= 0 && i >= firstIncomplete;
+  const criticalSet = new Set<number>();
+  if (started) {
+    if (inProgress.length > 0) inProgress.forEach((i) => criticalSet.add(i));
+    else if (firstIncomplete >= 0) criticalSet.add(firstIncomplete); // próxima fase desbloqueada
+  }
+  const isCritical = (i: number) => criticalSet.has(i);
   const avg = Math.round(phases.reduce((a, f) => a + f.pct, 0) / phases.length);
   const done = phases.filter((f) => f.pct >= 100).length;
-  const criticalCount = firstIncomplete >= 0 ? phases.length - firstIncomplete : 0;
+  const criticalCount = criticalSet.size;
   const sel = phases.find((f) => f.name === selected) ?? null;
   const selIdx = phases.findIndex((f) => f.name === selected);
+
 
   return (
     <div className="space-y-4">
