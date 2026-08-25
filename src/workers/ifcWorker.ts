@@ -135,6 +135,17 @@ async function run(url: string) {
   const buckets = new Map<string, Bucket>();
   let processed = 0;
 
+  /** Dados por elemento IFC (bbox + quantidades) — base do BoQ detalhado. */
+  type Elem = {
+    ifcClass: string;
+    minX: number; minY: number; minZ: number;
+    maxX: number; maxY: number; maxZ: number;
+    volumeM3: number;
+    areaM2: number;
+  };
+  const elems = new Map<number, Elem>();
+
+
   api.StreamAllMeshes(modelID, (flatMesh: any) => {
     const expressID = flatMesh.expressID;
     let ifcClass = "IFCELEMENT";
