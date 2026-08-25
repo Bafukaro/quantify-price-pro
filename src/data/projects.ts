@@ -4,6 +4,7 @@ import type { PhaseKey } from "@/components/three/BuildingModel";
 import { aggregateByPhase, phaseTotal, PHASES } from "@/lib/phaseQuantities";
 import { setPriceCity } from "@/data/priceDb";
 import type { RebarTakeoff } from "@/lib/rebar";
+import type { ElementGroup } from "@/workers/ifcWorker";
 
 export type ModelExt = "gltf" | "glb" | "obj" | "ifc";
 
@@ -84,7 +85,9 @@ function mapRow(r: any): Project {
     totalMT: Number(r.total_mt ?? 0),
     spentPct: Number(r.spent_pct ?? 0),
     alerts: Number(r.alerts ?? 0),
-    phases: (r.phases as ProjectPhase[]) ?? DEFAULT_PHASES,
+    // jsonb tem default '[]' — um array vazio deve cair nas fases padrão para
+    // que TODOS os projectos tenham cronograma editável.
+    phases: ((r.phases as ProjectPhase[])?.length ? (r.phases as ProjectPhase[]) : DEFAULT_PHASES),
     updatedAt: String(r.updated_at ?? "").slice(0, 10),
     model: r.model_path
       ? { path: r.model_path, name: r.model_name, ext: r.model_ext as ModelExt, size: Number(r.model_size ?? 0) }
@@ -157,7 +160,7 @@ async function migrateLegacy(userId: string) {
     total_mt: Number(p.totalMT ?? 0),
     spent_pct: Number(p.spentPct ?? 0),
     alerts: Number(p.alerts ?? 0),
-    phases: p.phases ?? DEFAULT_PHASES,
+    phases: p.phases?.length ? p.phases : DEFAULT_PHASES,
     overrides: overrides[p.id] ?? {},
   }));
   const { error } = await supabase.from("projects").upsert(rows as any, { onConflict: "owner_id,legacy_id" });
@@ -311,13 +314,16 @@ async function persistQuantities(
   id: string,
   meshes: StoredMeshInfo[],
   overrides: Record<string, PhaseKey>,
-  rebar?: RebarTakeoff | null
+  rebar?: RebarTakeoff | null,
+  elementGroups?: ElementGroup[]
 ) {
   const p = projects.find((x) => x.id === id);
   if (!p) return;
   const { total, quantities } = computeProjectTotals({ location: p.location, meshes, overrides });
   const keptRebar = rebar !== undefined ? rebar : ((p.quantities as any)?.rebar ?? null);
-  const q = { ...quantities, rebar: keptRebar };
+  const keptGroups =
+    elementGroups !== undefined ? elementGroups : ((p.quantities as any)?.elementGroups ?? []);
+  const q = { ...quantities, rebar: keptRebar, elementGroups: keptGroups };
   await patchProject(
     id,
     { meshes, overrides, quantities: q, total_mt: Math.round(total) },
@@ -328,11 +334,12 @@ async function persistQuantities(
 export function setProjectModelMeshes(
   projectId: string,
   meshes: StoredMeshInfo[],
-  rebar: RebarTakeoff | null = null
+  rebar: RebarTakeoff | null = null,
+  elementGroups: ElementGroup[] = []
 ) {
   const p = projects.find((x) => x.id === projectId);
   if (!p) return;
-  void persistQuantities(projectId, meshes, p.overrides, rebar);
+  void persistQuantities(projectId, meshes, p.overrides, rebar, elementGroups);
 }
 
 /** Takeoff de armadura persistido (IfcReinforcingBar), quando o ficheiro o continha. */
@@ -341,6 +348,14 @@ export function useProjectRebar(projectId: string): RebarTakeoff | null {
   const p = projects.find((x) => x.id === projectId);
   return ((p?.quantities as any)?.rebar as RebarTakeoff | null) ?? null;
 }
+
+/** Grupos de elementos IFC (dimensões reais) usados no BoQ detalhado. */
+export function useProjectElementGroups(projectId: string): ElementGroup[] {
+  useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const p = projects.find((x) => x.id === projectId);
+  return ((p?.quantities as any)?.elementGroups as ElementGroup[]) ?? [];
+}
+
 
 /** Percentagem de execução declarada pelo utilizador para uma fase do projecto. */
 export function setProjectPhasePct(projectId: string, phaseName: string, pct: number) {

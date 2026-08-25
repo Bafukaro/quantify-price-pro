@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
-import { loadIFC, IfcLoadError, type IfcProgress, type IfcWorkerMetrics } from "@/lib/ifcLoader";
+import { loadIFC, IfcLoadError, type IfcProgress, type IfcWorkerMetrics, type ElementGroup } from "@/lib/ifcLoader";
 import { computeMeshQuantity } from "@/lib/meshQuantities";
 import { buildOptimizedScene, disposeScene } from "@/lib/optimizeScene";
 import type { RebarTakeoff } from "@/lib/rebar";
@@ -106,7 +106,7 @@ export default function UploadedModel({
   visiblePhases: Set<PhaseKey>;
   overrides: Record<string, PhaseKey>;
   onSelect: (p: PhaseKey) => void;
-  onLoaded?: (meshes: MeshInfo[], rebar: RebarTakeoff | null) => void;
+  onLoaded?: (meshes: MeshInfo[], rebar: RebarTakeoff | null, elementGroups: ElementGroup[]) => void;
   onError?: (msg: string, detail?: string, stage?: string) => void;
   onProgress?: (p: IfcProgress) => void;
   onMetrics?: (m: IfcWorkerMetrics) => void;
@@ -196,10 +196,12 @@ export default function UploadedModel({
   }, [root]);
 
   // Tag each mesh with a phase + center & scale model
-  const { tagged, meshes, rebar } = useMemo(() => {
+  const { tagged, meshes, rebar, elementGroups } = useMemo(() => {
     const meshes: MeshInfo[] = [];
     const rebar = ((root?.userData as any)?.rebar as RebarTakeoff | null) ?? null;
-    if (!root) return { tagged: null, meshes, rebar: null as RebarTakeoff | null };
+    const elementGroups = ((root?.userData as any)?.elementGroups as ElementGroup[]) ?? [];
+    if (!root)
+      return { tagged: null, meshes, rebar: null as RebarTakeoff | null, elementGroups: [] as ElementGroup[] };
 
     // 1) Quantidades REAIS — calculadas nas unidades originais do ficheiro,
     //    antes de qualquer re-escala de visualização.
@@ -254,11 +256,11 @@ export default function UploadedModel({
         i++;
       }
     });
-    return { tagged: root, meshes, rebar };
+    return { tagged: root, meshes, rebar, elementGroups };
   }, [root]);
 
   useEffect(() => {
-    if (tagged && onLoaded) onLoaded(meshes, rebar);
+    if (tagged && onLoaded) onLoaded(meshes, rebar, elementGroups);
   }, [tagged]); // eslint-disable-line
 
   // === OPTIMIZAÇÃO DE RENDER ===

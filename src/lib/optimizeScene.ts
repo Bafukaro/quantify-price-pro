@@ -74,6 +74,29 @@ export function buildOptimizedScene(
       side: THREE.DoubleSide,
     });
 
+    // --- Caminho rápido IFC ---
+    // O worker já devolve UMA malha fundida por classe IFC. Voltar a passar essa
+    // geometria por toNonIndexed()+mergeGeometries só multiplica memória e pode
+    // corromper/perder geometria (era o caso da Alvenaria, que aparecia como um
+    // painel branco). Aqui reutilizamos a geometria original e só aplicamos a
+    // matriz de mundo à malha — o nº de draw calls mantém-se igual ao nº de
+    // classes IFC da fase (1-3), portanto não há regressão de performance.
+    const allIfc = list.every((m) => !!(m.userData as any)?.ifcClass && !!m.geometry?.getAttribute("position"));
+    if (allIfc) {
+      list.forEach((m) => {
+        const clone = new THREE.Mesh(m.geometry, material);
+        clone.applyMatrix4(m.matrixWorld);
+        clone.frustumCulled = true;
+        clone.castShadow = false;
+        clone.receiveShadow = false;
+        clone.userData = { phase, ifcClass: (m.userData as any).ifcClass, sharedGeometry: true };
+        clone.name = `${phase}__${(m.userData as any).ifcClass}`;
+        group.add(clone);
+        draws += 1;
+      });
+      return;
+    }
+
     // Agrupar por identidade de geometria para detectar repetições.
     const byGeom = new Map<string, THREE.Mesh[]>();
     list.forEach((m) => {
@@ -82,6 +105,7 @@ export function buildOptimizedScene(
       if (g) g.push(m);
       else byGeom.set(key, [m]);
     });
+
 
     const mergePool: THREE.BufferGeometry[] = [];
 
@@ -141,7 +165,9 @@ export function disposeScene(obj: THREE.Object3D | null) {
   obj.traverse((child) => {
     const mesh = child as THREE.Mesh;
     if (!(mesh as any).isMesh && !(mesh as any).isInstancedMesh) return;
-    mesh.geometry?.dispose?.();
+    // Geometria partilhada com a árvore original (caminho rápido IFC): não
+    // libertar aqui, senão o modelo desaparece ao mudar de fase/override.
+    if (!(mesh.userData as any)?.sharedGeometry) mesh.geometry?.dispose?.();
     const mats = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
     mats.forEach((m) => {
       const sm = m as THREE.MeshStandardMaterial;

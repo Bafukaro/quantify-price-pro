@@ -290,8 +290,9 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                     reloadKey={reloadKey}
                     onProgress={(p) => setProgress(p)}
                     onMetrics={(m) => setMetrics(m)}
-                    onLoaded={(m, rb) => {
-                      setProjectModelMeshes(projectId, m, rb);
+                    onLoaded={(m, rb, groups) => {
+                      setProjectModelMeshes(projectId, m, rb, groups);
+
                       setProgress(null);
                       if (m.length === 0) {
                         setLoadError("Modelo carregado mas sem geometria (0 meshes).");

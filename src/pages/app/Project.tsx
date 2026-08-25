@@ -1,5 +1,5 @@
 import { useParams, useSearchParams } from "react-router-dom";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { fmtMT } from "@/data/mock";
 import {
   Download,
@@ -14,9 +14,10 @@ import {
   TrendingDown,
 } from "lucide-react";
 import { getStats, setPriceCity } from "@/data/priceDb";
-import { useAudit, useProjects, useProjectMeshes, useProjectOverrides, useProjectRebar, setProjectPhasePct } from "@/data/store";
+import { useAudit, useProjects, useProjectMeshes, useProjectOverrides, useProjectRebar, useProjectElementGroups, setProjectPhasePct } from "@/data/store";
 import { exportBoQPDF, exportBoQExcel } from "@/lib/exports";
 import { buildBoQSource, boqGrandTotal, type BoQSource } from "@/lib/boqSource";
+import { buildDetailedBoQ, type DetailedPhase } from "@/lib/detailedBoq";
 import type { Project as ProjectRecord } from "@/data/projects";
 import Model3D from "@/pages/app/Model3D";
 
@@ -100,7 +101,7 @@ export default function Project() {
       {active === "resumo" && <ResumoView project={project} boq={boq} total={total} />}
       {active === "vista3d" && <Model3D projectId={project.id} />}
       {active === "calculos" && <CalculosView />}
-      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} boq={boq} />}
+      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} />}
       {active === "cronograma" && <CronogramaView project={project} />}
       {active === "auditlog" && <AuditLogView />}
       {active === "relatorio" && <RelatorioView project={project} boq={boq} total={total} ivaPct={ivaPct} contPct={contPct} />}
@@ -354,26 +355,65 @@ function CalculosView() {
 }
 
 // ===================== ORÇAMENTO =====================
-function OrcamentoView({ ivaPct, contPct, projectName, boq }: { ivaPct: number; contPct: number; projectName: string; boq: BoQSource }) {
+function OrcamentoView({
+  ivaPct,
+  contPct,
+  projectName,
+  projectId,
+  boq,
+}: {
+  ivaPct: number;
+  contPct: number;
+  projectName: string;
+  projectId: string;
+  boq: BoQSource;
+}) {
   const subtotalGeral = boqGrandTotal(boq);
   const contingencia = subtotalGeral * contPct;
   const iva = subtotalGeral * ivaPct;
   const total = subtotalGeral + contingencia + iva;
+  const groups = useProjectElementGroups(projectId);
+  const detailed = useMemo(() => buildDetailedBoQ(groups), [groups]);
+  const [mode, setMode] = useState<"fases" | "detalhado">(groups.length ? "detalhado" : "fases");
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="text-sm text-muted-foreground max-w-xl">{boq.originLabel}</div>
         <div className="flex gap-2">
-          <button onClick={() => exportBoQExcel(projectName, boq)} className="inline-flex items-center gap-2 border border-border px-3 py-1.5 rounded-md text-sm hover:bg-muted">
+          <div className="inline-flex rounded-md border border-border overflow-hidden text-sm">
+            {(["detalhado", "fases"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                disabled={m === "detalhado" && groups.length === 0}
+                className={`px-3 py-1.5 transition disabled:opacity-40 ${
+                  mode === m ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                }`}
+              >
+                {m === "detalhado" ? "BoQ detalhado" : "Resumo por fase"}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => exportBoQExcel(projectName, boq, detailed)} className="inline-flex items-center gap-2 border border-border px-3 py-1.5 rounded-md text-sm hover:bg-muted">
             <FileSpreadsheet className="size-4" /> Excel
           </button>
-          <button onClick={() => exportBoQPDF(projectName, boq)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:opacity-90">
+          <button onClick={() => exportBoQPDF(projectName, boq, detailed)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:opacity-90">
             <Download className="size-4" /> PDF
           </button>
         </div>
       </div>
-      {boq.order.map((key) => {
+
+      {mode === "detalhado" && groups.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          Carregue um modelo IFC na Vista 3D para obter o BoQ detalhado por elemento.
+        </div>
+      )}
+
+      {mode === "detalhado" && detailed.map((sec) => <DetailedPhaseTable key={sec.phase} sec={sec} />)}
+
+      {mode === "fases" && boq.order.map((key) => {
+
         const sec = boq.sections[key];
         return (
           <div key={key} className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
@@ -442,6 +482,89 @@ function OrcamentoView({ ivaPct, contPct, projectName, boq }: { ivaPct: number; 
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Tabela do BoQ detalhado: artigo por tipo/dimensão + materiais derivados. */
+function DetailedPhaseTable({ sec }: { sec: DetailedPhase }) {
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
+      <div className="px-5 py-3 border-b border-border bg-muted/30 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div className="font-display text-base">{sec.label}</div>
+          <div className="text-[11px] text-muted-foreground">
+            {sec.count} elementos · {sec.volumeM3.toFixed(2)} m³ · {sec.areaM2.toFixed(1)} m²
+          </div>
+        </div>
+        <div className="font-mono text-sm">{fmtMT(sec.total)}</div>
+      </div>
+      <table className="w-full text-sm">
+        <thead className="bg-muted/40 text-muted-foreground text-xs uppercase tracking-wider">
+          <tr>
+            <th className="px-4 py-2.5 text-left">Art.</th>
+            <th className="px-4 py-2.5 text-left">Designação (extraída do modelo)</th>
+            <th className="px-4 py-2.5 text-right">Nº</th>
+            <th className="px-4 py-2.5 text-right">Un</th>
+            <th className="px-4 py-2.5 text-right">Qtd</th>
+            <th className="px-4 py-2.5 text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {sec.lines.map((l) => (
+            <Fragment key={l.code}>
+              <tr
+                onClick={() => setOpen(open === l.code ? null : l.code)}
+                className="hover:bg-muted/30 cursor-pointer"
+              >
+                <td className="px-4 py-2.5 font-mono">{l.code}</td>
+                <td className="px-4 py-2.5">
+                  <div>{l.desc}</div>
+                  {l.note && <div className="text-[11px] text-muted-foreground">{l.note}</div>}
+                </td>
+                <td className="px-4 py-2.5 text-right font-mono">{l.count}</td>
+                <td className="px-4 py-2.5 text-right text-muted-foreground">{l.un}</td>
+                <td className="px-4 py-2.5 text-right font-mono">
+                  {l.qty.toLocaleString("pt-PT", { maximumFractionDigits: 2 })}
+                </td>
+                <td className="px-4 py-2.5 text-right font-mono font-medium">
+                  {Math.round(l.total).toLocaleString("pt-PT")}
+                </td>
+              </tr>
+              {open === l.code && (
+                <tr className="bg-muted/20">
+                  <td />
+                  <td colSpan={5} className="px-4 py-3">
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
+                      Materiais a preço de mercado local
+                    </div>
+                    <table className="w-full text-xs">
+                      <tbody className="divide-y divide-border/60">
+                        {l.materials.map((m) => (
+                          <tr key={m.item}>
+                            <td className="py-1.5">{m.desc}</td>
+                            <td className="py-1.5 text-right text-muted-foreground">{m.un}</td>
+                            <td className="py-1.5 text-right font-mono">
+                              {m.qty.toLocaleString("pt-PT", { maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-1.5 text-right font-mono">
+                              {m.priced ? m.preco.toLocaleString("pt-PT") : <span className="text-warning">sem preço</span>}
+                            </td>
+                            <td className="py-1.5 text-right font-mono font-medium">
+                              {Math.round(m.qty * m.preco).toLocaleString("pt-PT")}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
