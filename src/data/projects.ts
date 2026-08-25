@@ -85,7 +85,9 @@ function mapRow(r: any): Project {
     totalMT: Number(r.total_mt ?? 0),
     spentPct: Number(r.spent_pct ?? 0),
     alerts: Number(r.alerts ?? 0),
-    phases: (r.phases as ProjectPhase[]) ?? DEFAULT_PHASES,
+    // jsonb tem default '[]' — um array vazio deve cair nas fases padrão para
+    // que TODOS os projectos tenham cronograma editável.
+    phases: ((r.phases as ProjectPhase[])?.length ? (r.phases as ProjectPhase[]) : DEFAULT_PHASES),
     updatedAt: String(r.updated_at ?? "").slice(0, 10),
     model: r.model_path
       ? { path: r.model_path, name: r.model_name, ext: r.model_ext as ModelExt, size: Number(r.model_size ?? 0) }
@@ -158,7 +160,7 @@ async function migrateLegacy(userId: string) {
     total_mt: Number(p.totalMT ?? 0),
     spent_pct: Number(p.spentPct ?? 0),
     alerts: Number(p.alerts ?? 0),
-    phases: p.phases ?? DEFAULT_PHASES,
+    phases: p.phases?.length ? p.phases : DEFAULT_PHASES,
     overrides: overrides[p.id] ?? {},
   }));
   const { error } = await supabase.from("projects").upsert(rows as any, { onConflict: "owner_id,legacy_id" });
