@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_reports: {
+        Row: {
+          approved_qty: number | null
+          created_at: string
+          id: string
+          note: string
+          owner_id: string
+          photos: Json
+          project_id: string
+          qty: number
+          report_date: string
+          reporter: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          task_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_qty?: number | null
+          created_at?: string
+          id?: string
+          note?: string
+          owner_id?: string
+          photos?: Json
+          project_id: string
+          qty?: number
+          report_date?: string
+          reporter?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          task_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_qty?: number | null
+          created_at?: string
+          id?: string
+          note?: string
+          owner_id?: string
+          photos?: Json
+          project_id?: string
+          qty?: number
+          report_date?: string
+          reporter?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          task_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_reports_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_reports_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           alerts: number
@@ -85,6 +154,62 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      schedule_tasks: {
+        Row: {
+          created_at: string
+          dur_weeks: number
+          id: string
+          name: string
+          owner_id: string
+          phase: string
+          planned_pct: number
+          project_id: string
+          start_week: number
+          status: string
+          target_qty: number
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dur_weeks?: number
+          id?: string
+          name: string
+          owner_id?: string
+          phase?: string
+          planned_pct?: number
+          project_id: string
+          start_week?: number
+          status?: string
+          target_qty?: number
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dur_weeks?: number
+          id?: string
+          name?: string
+          owner_id?: string
+          phase?: string
+          planned_pct?: number
+          project_id?: string
+          start_week?: number
+          status?: string
+          target_qty?: number
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
