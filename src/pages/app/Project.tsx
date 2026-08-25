@@ -505,11 +505,14 @@ function DetailedPhaseTable({ sec }: { sec: DetailedPhase }) {
           <tr>
             <th className="px-4 py-2.5 text-left">Art.</th>
             <th className="px-4 py-2.5 text-left">Designação (extraída do modelo)</th>
+            <th className="px-4 py-2.5 text-left">Secção / esp.</th>
+            <th className="px-4 py-2.5 text-right">Altura</th>
             <th className="px-4 py-2.5 text-right">Nº</th>
             <th className="px-4 py-2.5 text-right">Un</th>
             <th className="px-4 py-2.5 text-right">Qtd</th>
             <th className="px-4 py-2.5 text-right">Total</th>
           </tr>
+
         </thead>
         <tbody className="divide-y divide-border">
           {sec.lines.map((l) => (
