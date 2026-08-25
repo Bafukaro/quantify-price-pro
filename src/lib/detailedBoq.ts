@@ -114,11 +114,11 @@ function describe(g: ElementGroup) {
     const esp = Math.max(0.01, all[0]);
     const area = g.volumeM3 > 0 ? g.volumeM3 / esp : areaFace / 2;
     return {
-      desc: `${base} · esp. ${n2(esp)} m`,
+      desc: `${base} · esp. ${n2(esp)} m · ${n2(area)} m²`,
       un: "m²",
       qty: area,
       dims: { thicknessM: esp, lengthM: all[2], widthM: all[1] },
-      note: `${g.count} painéis · ${n2(g.volumeM3)} m³ de betão`,
+      note: `${g.count} painéis · esp. ${n2(esp)} m · área ${n2(area)} m² · ${n2(g.volumeM3)} m³ de betão · cofragem ≈${n2(area)} m²`,
     };
   }
   if (/FOOTING/i.test(g.ifcClass)) {
@@ -127,7 +127,7 @@ function describe(g: ElementGroup) {
       un: "un",
       qty: g.count,
       dims: { section: `${n2(horiz[0])}×${n2(horiz[1])} m`, heightM: dy },
-      note: `${n2(g.volumeM3)} m³ de betão de fundação`,
+      note: `${g.count} sapatas · ${n2(g.volumeM3)} m³ de betão de fundação`,
     };
   }
   if (/WALL/i.test(g.ifcClass)) {
@@ -136,23 +136,33 @@ function describe(g: ElementGroup) {
     const area = g.volumeM3 > 0 ? g.volumeM3 / esp : g.count * compr * dy;
     // blocos 190×190×390 assentes: ~12,5 un/m² (com juntas de 10 mm)
     const blocos = Math.ceil(area * 12.5);
+    // tijolo furado 200×100×50 assente ao alto: ~50 un/m²
+    const tijolos = Math.ceil(area * 50);
     return {
-      desc: `${base} · esp. ${n2(esp)} m · h=${n2(dy)} m`,
+      desc: `${base} · esp. ${n2(esp)} m · h=${n2(dy)} m · ${n2(area)} m²`,
       un: "m²",
       qty: area,
       dims: { thicknessM: esp, heightM: dy, lengthM: compr },
-      note: `${g.count} paredes · ≈${blocos} blocos 19×19×39 · ${n2(g.volumeM3)} m³`,
+      note: `${g.count} paredes · h=${n2(dy)} m · esp. ${n2(esp)} m · ≈${blocos.toLocaleString("pt-PT")} blocos 19×19×39 (ou ≈${tijolos.toLocaleString("pt-PT")} tijolos 20×10×5) · argamassa ≈${n2(area * 0.02)} m³`,
     };
   }
   if (/ROOF/i.test(g.ifcClass)) {
+    const areaPlanta = areaFace;
+    const areaChapa = areaPlanta * 1.15; // 15% de sobreposição/recorte
+    // chapa de zinco ondulada 2,00 × 0,90 m → 1,80 m² brutos
+    const chapas = Math.ceil(areaChapa / 1.8);
+    // ripas/madres a 0,60 m de espaçamento
+    const madres = Math.ceil(areaPlanta / 0.6);
+    const parafusos = Math.ceil(chapas * 12);
     return {
-      desc: `${base} · área em planta`,
+      desc: `${base} · ${n2(areaPlanta)} m² em planta · esp. ${n2(all[0])} m`,
       un: "m²",
-      qty: areaFace,
-      dims: { thicknessM: all[0] },
-      note: `${g.count} elementos · chapa medida com 15% de sobreposição`,
+      qty: areaPlanta,
+      dims: { thicknessM: all[0], heightM: dy },
+      note: `${g.count} elementos de cobertura · ≈${chapas.toLocaleString("pt-PT")} chapas de zinco 2,00×0,90 m (15% sobreposição) · ≈${n2(madres * 0.6)} m de madres/ripas · ≈${parafusos.toLocaleString("pt-PT")} parafusos com anilha`,
     };
   }
+
   if (/DOOR|WINDOW/i.test(g.ifcClass)) {
     return {
       desc: `${base} ${n2(Math.max(dx, dz))}×${n2(dy)} m`,
