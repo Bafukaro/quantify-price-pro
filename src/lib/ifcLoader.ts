@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import type { RebarTakeoff } from "./rebar";
-import type { IfcClassPayload, IfcWorkerMetrics } from "@/workers/ifcWorker";
+import type { ElementGroup, IfcClassPayload, IfcWorkerMetrics } from "@/workers/ifcWorker";
 
 export type IfcProgress = { stage: "download" | "parse" | "geometry" | "merge"; elements: number };
-export type { IfcWorkerMetrics };
+export type { IfcWorkerMetrics, ElementGroup };
 
 /** Erro do pipeline IFC com causa legível para o ecrã de erro. */
 export class IfcLoadError extends Error {
@@ -54,6 +54,7 @@ export async function loadIFC(
     const payload = await new Promise<{
       classes: IfcClassPayload[];
       rebar: RebarTakeoff | null;
+      elementGroups?: ElementGroup[];
       metrics?: IfcWorkerMetrics;
     }>(
       (resolve, reject) => {
@@ -135,6 +136,7 @@ export async function loadIFC(
       invalidElements,
       source: "ifc",
       rebar: payload.rebar,
+      elementGroups: payload.elementGroups ?? [],
       upFixed: true,
       metrics: payload.metrics ?? null,
     };
