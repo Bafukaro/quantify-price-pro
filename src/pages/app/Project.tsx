@@ -20,6 +20,7 @@ import { buildBoQSource, boqGrandTotal, type BoQSource } from "@/lib/boqSource";
 import { buildDetailedBoQ, type DetailedPhase } from "@/lib/detailedBoq";
 import type { Project as ProjectRecord } from "@/data/projects";
 import Model3D from "@/pages/app/Model3D";
+import Cronograma from "@/components/schedule/Cronograma";
 
 type TabKey = "resumo" | "vista3d" | "calculos" | "orcamento" | "cronograma" | "auditlog" | "relatorio";
 const TABS: { key: TabKey; label: string }[] = [
