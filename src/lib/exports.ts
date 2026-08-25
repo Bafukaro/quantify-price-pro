@@ -33,7 +33,10 @@ function detailedRows(phases: DetailedPhase[]) {
           Fase: sec.label,
           "Classe IFC": "",
           Designação: `   ${m.desc}`,
+          "Secção / esp.": "",
+          "Altura (m)": "",
           "Nº elementos": "",
+
           Un: m.un,
           Qtd: Number(m.qty.toFixed(2)),
           "Volume (m³)": "",
