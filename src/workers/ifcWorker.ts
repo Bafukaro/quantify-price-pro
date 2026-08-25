@@ -241,6 +241,30 @@ async function run(url: string) {
         bucket.areaM2 += area2 / 2;
         bucket.triangles += triCount;
 
+        // Bounding box do elemento (espaço-mundo, Y-up) para dimensões reais.
+        let e = elems.get(expressID);
+        if (!e) {
+          e = {
+            ifcClass,
+            minX: Infinity, minY: Infinity, minZ: Infinity,
+            maxX: -Infinity, maxY: -Infinity, maxZ: -Infinity,
+            volumeM3: 0, areaM2: 0,
+          };
+          elems.set(expressID, e);
+        }
+        for (let v = 0; v < vertexCount; v++) {
+          const px = positions[v * 3], py = positions[v * 3 + 1], pz = positions[v * 3 + 2];
+          if (px < e.minX) e.minX = px;
+          if (py < e.minY) e.minY = py;
+          if (pz < e.minZ) e.minZ = pz;
+          if (px > e.maxX) e.maxX = px;
+          if (py > e.maxY) e.maxY = py;
+          if (pz > e.maxZ) e.maxZ = pz;
+        }
+        e.volumeM3 += Math.abs(vol6) / 6;
+        e.areaM2 += area2 / 2;
+
+
         // Merge por classe: reindexar com offset de vértices.
         const offset = bucket.vertexTotal;
         const idx = new Uint32Array(rawIdx.length);
