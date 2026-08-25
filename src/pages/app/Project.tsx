@@ -20,6 +20,7 @@ import { buildBoQSource, boqGrandTotal, type BoQSource } from "@/lib/boqSource";
 import { buildDetailedBoQ, type DetailedPhase } from "@/lib/detailedBoq";
 import type { Project as ProjectRecord } from "@/data/projects";
 import Model3D from "@/pages/app/Model3D";
+import Cronograma from "@/components/schedule/Cronograma";
 
 type TabKey = "resumo" | "vista3d" | "calculos" | "orcamento" | "cronograma" | "auditlog" | "relatorio";
 const TABS: { key: TabKey; label: string }[] = [
@@ -581,151 +582,14 @@ function DetailedPhaseTable({ sec }: { sec: DetailedPhase }) {
 
 // ===================== CRONOGRAMA =====================
 /**
- * Progresso real: cada fase tem um "% concluído" declarado pelo utilizador e
- * persistido no projecto. Nada é fixo nem inventado.
- * Caminho crítico = apenas a(s) fase(s) que estão de facto a bloquear a
- * conclusão — a frente de trabalho activa (fase em curso) ou, se nada estiver
- * em curso, a próxima fase que já ficou desbloqueada por uma fase concluída.
- * Se o projecto ainda não arrancou (todas a 0%), não há caminho crítico.
+ * Duas dimensões separadas e comparáveis:
+ *  - Planeado: Gantt por tarefa/fase ao longo das semanas (janela + tempo decorrido).
+ *  - Real: unidades confirmadas nos relatórios diários / quantidade-alvo.
  */
 function CronogramaView({ project }: { project: ProjectRecord }) {
-  const phases = project.phases?.length ? project.phases : [];
-  const [selected, setSelected] = useState<string | null>(null);
-
-  if (phases.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-        Sem fases definidas para este projecto — sem dados de progresso.
-      </div>
-    );
-  }
-
-  const started = phases.some((f) => f.pct > 0);
-  // Fases em curso (0 < pct < 100) bloqueiam a conclusão.
-  const inProgress = phases.map((f, i) => (f.pct > 0 && f.pct < 100 ? i : -1)).filter((i) => i >= 0);
-  const firstIncomplete = phases.findIndex((f) => f.pct < 100);
-  const criticalSet = new Set<number>();
-  if (started) {
-    if (inProgress.length > 0) inProgress.forEach((i) => criticalSet.add(i));
-    else if (firstIncomplete >= 0) criticalSet.add(firstIncomplete); // próxima fase desbloqueada
-  }
-  const isCritical = (i: number) => criticalSet.has(i);
-  const avg = Math.round(phases.reduce((a, f) => a + f.pct, 0) / phases.length);
-  const done = phases.filter((f) => f.pct >= 100).length;
-  const criticalCount = criticalSet.size;
-  const sel = phases.find((f) => f.name === selected) ?? null;
-  const selIdx = phases.findIndex((f) => f.name === selected);
-
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="size-3 rounded-sm bg-accent" /> Executado
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="size-3 rounded-sm bg-muted" /> Por executar
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="size-3 rounded-sm border-2 border-destructive" /> Caminho crítico (fase que bloqueia a conclusão)
-        </span>
-
-      </div>
-
-      <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
-        <div className="px-5 py-3 border-b border-border text-xs text-muted-foreground">
-          Clique numa fase para a destacar e editar o progresso.
-        </div>
-        <div className="divide-y divide-border">
-          {phases.map((f, i) => {
-            const critical = isCritical(i);
-            const isSel = selected === f.name;
-            return (
-              <div key={f.name} className={`px-5 py-3 transition ${isSel ? "bg-accent/5" : "hover:bg-muted/30"}`}>
-                <button onClick={() => setSelected(isSel ? null : f.name)} className="w-full text-left">
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] text-muted-foreground">F{i}</span>
-                      <span className={isSel ? "text-accent font-medium" : ""}>{f.name}</span>
-                      {critical && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-destructive/40 text-destructive">
-                          crítico
-                        </span>
-                      )}
-                    </span>
-                    <span className="font-mono text-xs">{f.pct}%</span>
-                  </div>
-                  <div
-                    className={`relative mt-2 h-6 rounded-md bg-muted border border-border overflow-hidden ${
-                      critical ? "ring-2 ring-destructive/60" : ""
-                    } ${isSel ? "ring-2 ring-accent" : ""}`}
-                  >
-                    <div
-                      className="h-full bg-accent transition-all duration-300"
-                      style={{ width: `${Math.max(0, Math.min(100, f.pct))}%`, minWidth: f.pct > 0 ? "0.5rem" : 0 }}
-                    />
-                    <span className="absolute inset-0 flex items-center px-2 text-[10px] font-mono text-foreground/70">
-                      {f.pct > 0 ? `${f.pct}%` : "por iniciar"}
-                    </span>
-                  </div>
-
-                </button>
-                {isSel && (
-                  <div className="mt-3 flex items-center gap-3">
-                    <label className="text-xs text-muted-foreground whitespace-nowrap">% concluído</label>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={5}
-                      value={f.pct}
-                      onChange={(e) => setProjectPhasePct(project.id, f.name, Number(e.target.value))}
-                      className="flex-1 accent-[hsl(var(--accent))]"
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={f.pct}
-                      onChange={(e) => setProjectPhasePct(project.id, f.name, Number(e.target.value))}
-                      className="w-16 text-xs border border-border rounded px-2 py-1 bg-background font-mono"
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="grid sm:grid-cols-3 gap-4">
-        <div className="p-5 rounded-xl bg-surface-elevated border border-border shadow-soft">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Fases no caminho crítico</div>
-          <div className="font-display text-2xl mt-2">{criticalCount}</div>
-        </div>
-        <div className="p-5 rounded-xl bg-surface-elevated border border-border shadow-soft">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Progresso médio</div>
-          <div className="font-display text-2xl mt-2">{avg}%</div>
-          <div className="text-[11px] text-muted-foreground mt-1">Média dos % declarados por fase</div>
-        </div>
-        <div className="p-5 rounded-xl bg-surface-elevated border border-border shadow-soft">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Fases concluídas</div>
-          <div className="font-display text-2xl mt-2">{done} / {phases.length}</div>
-        </div>
-      </div>
-
-      {sel && (
-        <div className="rounded-xl bg-primary text-primary-foreground p-5 shadow-elegant animate-fade-in">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-white/60">Fase seleccionada</div>
-          <div className="font-display text-xl mt-1">F{selIdx} — {sel.name}</div>
-          <div className="text-sm text-white/80 mt-2">
-            {sel.pct}% concluído · {isCritical(selIdx) ? "no caminho crítico" : "fora do caminho crítico"}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return <Cronograma project={project} />;
 }
+
 
 // ===================== AUDIT LOG =====================
 function AuditLogView() {
