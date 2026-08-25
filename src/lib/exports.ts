@@ -16,7 +16,10 @@ function detailedRows(phases: DetailedPhase[]) {
         Fase: sec.label,
         "Classe IFC": l.ifcClass,
         Designação: l.desc,
+        "Secção / esp.": l.dims.section ?? (l.dims.thicknessM ? `esp. ${l.dims.thicknessM.toFixed(2)} m` : ""),
+        "Altura (m)": l.dims.heightM ? Number(l.dims.heightM.toFixed(2)) : "",
         "Nº elementos": l.count,
+
         Un: l.un,
         Qtd: Number(l.qty.toFixed(2)),
         "Volume (m³)": Number(l.volumeM3.toFixed(3)),
@@ -30,7 +33,10 @@ function detailedRows(phases: DetailedPhase[]) {
           Fase: sec.label,
           "Classe IFC": "",
           Designação: `   ${m.desc}`,
+          "Secção / esp.": "",
+          "Altura (m)": "",
           "Nº elementos": "",
+
           Un: m.un,
           Qtd: Number(m.qty.toFixed(2)),
           "Volume (m³)": "",
@@ -114,8 +120,9 @@ export function exportBoQPDF(projectName: string, src: BoQSource, detailed: Deta
     const rows = detailedRows(detailed);
     autoTable(doc, {
       startY: 22,
-      head: [["Art.", "Fase", "Designação", "Nº", "Un", "Qtd", "Total (MT)"]],
-      body: rows.map((r) => [r.Art, r.Fase, r.Designação, r["Nº elementos"], r.Un, r.Qtd, r["Total (MT)"]] as any),
+      head: [["Art.", "Fase", "Designação", "Secção / esp.", "h (m)", "Nº", "Un", "Qtd", "Total (MT)"]],
+      body: rows.map((r) => [r.Art, r.Fase, r.Designação, r["Secção / esp."], r["Altura (m)"], r["Nº elementos"], r.Un, r.Qtd, r["Total (MT)"]] as any),
+
       styles: { fontSize: 7 },
       headStyles: { fillColor: [30, 50, 90] },
     });
