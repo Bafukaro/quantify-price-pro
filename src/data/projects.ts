@@ -4,6 +4,7 @@ import type { PhaseKey } from "@/components/three/BuildingModel";
 import { aggregateByPhase, phaseTotal, PHASES } from "@/lib/phaseQuantities";
 import { setPriceCity } from "@/data/priceDb";
 import type { RebarTakeoff } from "@/lib/rebar";
+import type { ElementGroup } from "@/workers/ifcWorker";
 
 export type ModelExt = "gltf" | "glb" | "obj" | "ifc";
 
