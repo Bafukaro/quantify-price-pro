@@ -26,6 +26,25 @@ export type IfcClassPayload = {
   triangles: number;
 };
 
+/**
+ * Agrupamento de elementos IFC com dimensões reais (bounding box no espaço-mundo).
+ * É a base do BoQ detalhado: nº de pilares por secção/altura, espessura de lajes,
+ * espessura e área de paredes, etc.
+ */
+export type ElementGroup = {
+  ifcClass: string;
+  count: number;
+  /** dimensões médias do bounding box em metros (dy = vertical) */
+  dx: number;
+  dy: number;
+  dz: number;
+  volumeM3: number;
+  areaM2: number;
+  /** true quando o grupo agrega geometrias de dimensões variadas */
+  mixed: boolean;
+};
+
+
 /** Métricas de diagnóstico do worker (tempos por etapa, buffers, contagens). */
 export type IfcWorkerMetrics = {
   fileBytes: number;
