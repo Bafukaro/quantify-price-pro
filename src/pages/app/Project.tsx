@@ -646,12 +646,19 @@ function CronogramaView({ project }: { project: ProjectRecord }) {
                     <span className="font-mono text-xs">{f.pct}%</span>
                   </div>
                   <div
-                    className={`mt-2 h-6 rounded-md bg-muted overflow-hidden ${
+                    className={`relative mt-2 h-6 rounded-md bg-muted border border-border overflow-hidden ${
                       critical ? "ring-2 ring-destructive/60" : ""
                     } ${isSel ? "ring-2 ring-accent" : ""}`}
                   >
-                    <div className="h-full bg-accent transition-all" style={{ width: `${f.pct}%` }} />
+                    <div
+                      className="h-full bg-accent transition-all duration-300"
+                      style={{ width: `${Math.max(0, Math.min(100, f.pct))}%`, minWidth: f.pct > 0 ? "0.5rem" : 0 }}
+                    />
+                    <span className="absolute inset-0 flex items-center px-2 text-[10px] font-mono text-foreground/70">
+                      {f.pct > 0 ? `${f.pct}%` : "por iniciar"}
+                    </span>
                   </div>
+
                 </button>
                 {isSel && (
                   <div className="mt-3 flex items-center gap-3">
