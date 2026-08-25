@@ -4,6 +4,45 @@ import * as XLSX from "xlsx";
 import { fmtMT } from "@/data/mock";
 import type { BoQSection, BoQSource } from "@/lib/boqSource";
 import { boqGrandTotal } from "@/lib/boqSource";
+import type { DetailedPhase } from "@/lib/detailedBoq";
+
+/** Linhas do BoQ detalhado (por elemento extraído do IFC) para exportação. */
+function detailedRows(phases: DetailedPhase[]) {
+  const rows: Record<string, string | number>[] = [];
+  phases.forEach((sec) => {
+    sec.lines.forEach((l) => {
+      rows.push({
+        Art: l.code,
+        Fase: sec.label,
+        "Classe IFC": l.ifcClass,
+        Designação: l.desc,
+        "Nº elementos": l.count,
+        Un: l.un,
+        Qtd: Number(l.qty.toFixed(2)),
+        "Volume (m³)": Number(l.volumeM3.toFixed(3)),
+        "Área (m²)": Number(l.areaM2.toFixed(2)),
+        Nota: l.note ?? "",
+        "Total (MT)": Math.round(l.total),
+      });
+      l.materials.forEach((m) => {
+        rows.push({
+          Art: `${l.code}.${m.item}`,
+          Fase: sec.label,
+          "Classe IFC": "",
+          Designação: `   ${m.desc}`,
+          "Nº elementos": "",
+          Un: m.un,
+          Qtd: Number(m.qty.toFixed(2)),
+          "Volume (m³)": "",
+          "Área (m²)": "",
+          Nota: m.priced ? `P.U. ${Math.round(m.preco)} MT` : "sem preço",
+          "Total (MT)": Math.round(m.qty * m.preco),
+        });
+      });
+    });
+  });
+  return rows;
+}
 
 const safe = (s: string) => s.replace(/\s+/g, "_").replace(/[^\w\-]/g, "");
 
@@ -52,7 +91,7 @@ function addSection(doc: jsPDF, src: BoQSource, sec: BoQSection, y: number) {
   return (doc as any).lastAutoTable.finalY + 10;
 }
 
-export function exportBoQPDF(projectName: string, src: BoQSource) {
+export function exportBoQPDF(projectName: string, src: BoQSource, detailed: DetailedPhase[] = []) {
   const doc = pdfDoc(projectName, src, "Orçamento completo — todas as fases construtivas");
   let y = 40;
   src.order.forEach((p) => {
@@ -68,10 +107,23 @@ export function exportBoQPDF(projectName: string, src: BoQSource) {
   }
   doc.setFontSize(13);
   doc.text("TOTAL GERAL: " + fmtMT(boqGrandTotal(src)), 14, y);
+  if (detailed.length) {
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.text("BoQ detalhado — artigos extraídos do modelo", 14, 16);
+    const rows = detailedRows(detailed);
+    autoTable(doc, {
+      startY: 22,
+      head: [["Art.", "Fase", "Designação", "Nº", "Un", "Qtd", "Total (MT)"]],
+      body: rows.map((r) => [r.Art, r.Fase, r.Designação, r["Nº elementos"], r.Un, r.Qtd, r["Total (MT)"]] as any),
+      styles: { fontSize: 7 },
+      headStyles: { fillColor: [30, 50, 90] },
+    });
+  }
   doc.save(`BoQ_${safe(projectName)}.pdf`);
 }
 
-export function exportBoQExcel(projectName: string, src: BoQSource) {
+export function exportBoQExcel(projectName: string, src: BoQSource, detailed: DetailedPhase[] = []) {
   const wb = XLSX.utils.book_new();
   src.order.forEach((p) => {
     const sec = src.sections[p];
@@ -92,6 +144,10 @@ export function exportBoQExcel(projectName: string, src: BoQSource) {
   );
   XLSX.utils.sheet_add_aoa(resumo, [["TOTAL GERAL", Math.round(boqGrandTotal(src))]], { origin: -1 });
   XLSX.utils.book_append_sheet(wb, resumo, "Resumo");
+  if (detailed.length) {
+    const det = XLSX.utils.json_to_sheet(detailedRows(detailed));
+    XLSX.utils.book_append_sheet(wb, det, "BoQ detalhado");
+  }
   XLSX.writeFile(wb, `BoQ_${safe(projectName)}.xlsx`);
 }
 

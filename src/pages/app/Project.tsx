@@ -1,5 +1,5 @@
 import { useParams, useSearchParams } from "react-router-dom";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { fmtMT } from "@/data/mock";
 import {
   Download,
@@ -513,9 +513,8 @@ function DetailedPhaseTable({ sec }: { sec: DetailedPhase }) {
         </thead>
         <tbody className="divide-y divide-border">
           {sec.lines.map((l) => (
-            <>
+            <Fragment key={l.code}>
               <tr
-                key={l.code}
                 onClick={() => setOpen(open === l.code ? null : l.code)}
                 className="hover:bg-muted/30 cursor-pointer"
               >
@@ -534,7 +533,7 @@ function DetailedPhaseTable({ sec }: { sec: DetailedPhase }) {
                 </td>
               </tr>
               {open === l.code && (
-                <tr key={l.code + "-mat"} className="bg-muted/20">
+                <tr className="bg-muted/20">
                   <td />
                   <td colSpan={5} className="px-4 py-3">
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
@@ -562,7 +561,7 @@ function DetailedPhaseTable({ sec }: { sec: DetailedPhase }) {
                   </td>
                 </tr>
               )}
-            </>
+            </Fragment>
           ))}
         </tbody>
       </table>
