@@ -526,6 +526,12 @@ function DetailedPhaseTable({ sec }: { sec: DetailedPhase }) {
                   <div>{l.desc}</div>
                   {l.note && <div className="text-[11px] text-muted-foreground">{l.note}</div>}
                 </td>
+                <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">
+                  {l.dims.section ?? (l.dims.thicknessM ? `esp. ${l.dims.thicknessM.toFixed(2).replace(".", ",")} m` : "—")}
+                </td>
+                <td className="px-4 py-2.5 text-right font-mono text-xs text-muted-foreground">
+                  {l.dims.heightM ? `${l.dims.heightM.toFixed(2).replace(".", ",")} m` : "—"}
+                </td>
                 <td className="px-4 py-2.5 text-right font-mono">{l.count}</td>
                 <td className="px-4 py-2.5 text-right text-muted-foreground">{l.un}</td>
                 <td className="px-4 py-2.5 text-right font-mono">
@@ -538,7 +544,8 @@ function DetailedPhaseTable({ sec }: { sec: DetailedPhase }) {
               {open === l.code && (
                 <tr className="bg-muted/20">
                   <td />
-                  <td colSpan={5} className="px-4 py-3">
+                  <td colSpan={7} className="px-4 py-3">
+
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
                       Materiais a preço de mercado local
                     </div>
