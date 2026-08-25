@@ -354,26 +354,65 @@ function CalculosView() {
 }
 
 // ===================== ORÇAMENTO =====================
-function OrcamentoView({ ivaPct, contPct, projectName, boq }: { ivaPct: number; contPct: number; projectName: string; boq: BoQSource }) {
+function OrcamentoView({
+  ivaPct,
+  contPct,
+  projectName,
+  projectId,
+  boq,
+}: {
+  ivaPct: number;
+  contPct: number;
+  projectName: string;
+  projectId: string;
+  boq: BoQSource;
+}) {
   const subtotalGeral = boqGrandTotal(boq);
   const contingencia = subtotalGeral * contPct;
   const iva = subtotalGeral * ivaPct;
   const total = subtotalGeral + contingencia + iva;
+  const groups = useProjectElementGroups(projectId);
+  const detailed = useMemo(() => buildDetailedBoQ(groups), [groups]);
+  const [mode, setMode] = useState<"fases" | "detalhado">(groups.length ? "detalhado" : "fases");
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="text-sm text-muted-foreground max-w-xl">{boq.originLabel}</div>
         <div className="flex gap-2">
-          <button onClick={() => exportBoQExcel(projectName, boq)} className="inline-flex items-center gap-2 border border-border px-3 py-1.5 rounded-md text-sm hover:bg-muted">
+          <div className="inline-flex rounded-md border border-border overflow-hidden text-sm">
+            {(["detalhado", "fases"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                disabled={m === "detalhado" && groups.length === 0}
+                className={`px-3 py-1.5 transition disabled:opacity-40 ${
+                  mode === m ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                }`}
+              >
+                {m === "detalhado" ? "BoQ detalhado" : "Resumo por fase"}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => exportBoQExcel(projectName, boq, detailed)} className="inline-flex items-center gap-2 border border-border px-3 py-1.5 rounded-md text-sm hover:bg-muted">
             <FileSpreadsheet className="size-4" /> Excel
           </button>
-          <button onClick={() => exportBoQPDF(projectName, boq)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:opacity-90">
+          <button onClick={() => exportBoQPDF(projectName, boq, detailed)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:opacity-90">
             <Download className="size-4" /> PDF
           </button>
         </div>
       </div>
-      {boq.order.map((key) => {
+
+      {mode === "detalhado" && groups.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          Carregue um modelo IFC na Vista 3D para obter o BoQ detalhado por elemento.
+        </div>
+      )}
+
+      {mode === "detalhado" && detailed.map((sec) => <DetailedPhaseTable key={sec.phase} sec={sec} />)}
+
+      {mode === "fases" && boq.order.map((key) => {
+
         const sec = boq.sections[key];
         return (
           <div key={key} className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
