@@ -617,8 +617,9 @@ function CronogramaView({ project }: { project: ProjectRecord }) {
           <span className="size-3 rounded-sm bg-muted" /> Por executar
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="size-3 rounded-sm border-2 border-destructive" /> Caminho crítico (fases por concluir)
+          <span className="size-3 rounded-sm border-2 border-destructive" /> Caminho crítico (fase que bloqueia a conclusão)
         </span>
+
       </div>
 
       <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
