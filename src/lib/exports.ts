@@ -120,8 +120,9 @@ export function exportBoQPDF(projectName: string, src: BoQSource, detailed: Deta
     const rows = detailedRows(detailed);
     autoTable(doc, {
       startY: 22,
-      head: [["Art.", "Fase", "Designação", "Nº", "Un", "Qtd", "Total (MT)"]],
-      body: rows.map((r) => [r.Art, r.Fase, r.Designação, r["Nº elementos"], r.Un, r.Qtd, r["Total (MT)"]] as any),
+      head: [["Art.", "Fase", "Designação", "Secção / esp.", "h (m)", "Nº", "Un", "Qtd", "Total (MT)"]],
+      body: rows.map((r) => [r.Art, r.Fase, r.Designação, r["Secção / esp."], r["Altura (m)"], r["Nº elementos"], r.Un, r.Qtd, r["Total (MT)"]] as any),
+
       styles: { fontSize: 7 },
       headStyles: { fillColor: [30, 50, 90] },
     });
