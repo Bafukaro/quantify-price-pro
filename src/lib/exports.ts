@@ -16,7 +16,10 @@ function detailedRows(phases: DetailedPhase[]) {
         Fase: sec.label,
         "Classe IFC": l.ifcClass,
         Designação: l.desc,
+        "Secção / esp.": l.dims.section ?? (l.dims.thicknessM ? `esp. ${l.dims.thicknessM.toFixed(2)} m` : ""),
+        "Altura (m)": l.dims.heightM ? Number(l.dims.heightM.toFixed(2)) : "",
         "Nº elementos": l.count,
+
         Un: l.un,
         Qtd: Number(l.qty.toFixed(2)),
         "Volume (m³)": Number(l.volumeM3.toFixed(3)),
