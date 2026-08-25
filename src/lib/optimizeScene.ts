@@ -165,7 +165,9 @@ export function disposeScene(obj: THREE.Object3D | null) {
   obj.traverse((child) => {
     const mesh = child as THREE.Mesh;
     if (!(mesh as any).isMesh && !(mesh as any).isInstancedMesh) return;
-    mesh.geometry?.dispose?.();
+    // Geometria partilhada com a árvore original (caminho rápido IFC): não
+    // libertar aqui, senão o modelo desaparece ao mudar de fase/override.
+    if (!(mesh.userData as any)?.sharedGeometry) mesh.geometry?.dispose?.();
     const mats = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
     mats.forEach((m) => {
       const sm = m as THREE.MeshStandardMaterial;
