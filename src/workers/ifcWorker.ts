@@ -333,6 +333,67 @@ async function run(url: string) {
     transfer.push(positions.buffer, normals.buffer, indices.buffer);
   });
 
+  // ---- Agrupamento por classe + dimensões (BoQ detalhado) ----
+  const r5 = (v: number) => Math.round(v * 20) / 20; // arredondar a 5 cm
+  const grouping = new Map<string, ElementGroup & { _sx: number; _sy: number; _sz: number }>();
+  elems.forEach((e) => {
+    const dx = Math.max(0, e.maxX - e.minX);
+    const dy = Math.max(0, e.maxY - e.minY);
+    const dz = Math.max(0, e.maxZ - e.minZ);
+    const key = `${e.ifcClass}|${r5(dx)}|${r5(dy)}|${r5(dz)}`;
+    let g = grouping.get(key);
+    if (!g) {
+      g = {
+        ifcClass: e.ifcClass, count: 0, dx: 0, dy: 0, dz: 0,
+        volumeM3: 0, areaM2: 0, mixed: false, _sx: 0, _sy: 0, _sz: 0,
+      };
+      grouping.set(key, g);
+    }
+    g.count += 1;
+    g._sx += dx; g._sy += dy; g._sz += dz;
+    g.volumeM3 += e.volumeM3;
+    g.areaM2 += e.areaM2;
+  });
+
+  // Limitar a 12 grupos por classe: os restantes fundem-se numa linha "variados".
+  const byClass = new Map<string, (ElementGroup & { _sx: number; _sy: number; _sz: number })[]>();
+  grouping.forEach((g) => {
+    const l = byClass.get(g.ifcClass);
+    if (l) l.push(g);
+    else byClass.set(g.ifcClass, [g]);
+  });
+  const elementGroups: ElementGroup[] = [];
+  byClass.forEach((list, ifcClass) => {
+    list.sort((a, b) => b.count - a.count || b.volumeM3 - a.volumeM3);
+    const keep = list.slice(0, 12);
+    const rest = list.slice(12);
+    keep.forEach((g) =>
+      elementGroups.push({
+        ifcClass,
+        count: g.count,
+        dx: +(g._sx / g.count).toFixed(3),
+        dy: +(g._sy / g.count).toFixed(3),
+        dz: +(g._sz / g.count).toFixed(3),
+        volumeM3: +g.volumeM3.toFixed(4),
+        areaM2: +g.areaM2.toFixed(3),
+        mixed: false,
+      })
+    );
+    if (rest.length) {
+      const count = rest.reduce((a, g) => a + g.count, 0);
+      elementGroups.push({
+        ifcClass,
+        count,
+        dx: +(rest.reduce((a, g) => a + g._sx, 0) / count).toFixed(3),
+        dy: +(rest.reduce((a, g) => a + g._sy, 0) / count).toFixed(3),
+        dz: +(rest.reduce((a, g) => a + g._sz, 0) / count).toFixed(3),
+        volumeM3: +rest.reduce((a, g) => a + g.volumeM3, 0).toFixed(4),
+        areaM2: +rest.reduce((a, g) => a + g.areaM2, 0).toFixed(3),
+        mixed: true,
+      });
+    }
+  });
+
   const { stages, totalMs } = timer.finish();
   const metrics: IfcWorkerMetrics = {
     fileBytes,
@@ -345,7 +406,8 @@ async function run(url: string) {
     stages,
     totalMs,
   };
-  post({ type: "result", classes, rebar, elements: processed, metrics }, transfer);
+  post({ type: "result", classes, rebar, elementGroups, elements: processed, metrics }, transfer);
+
 }
 
 self.onmessage = (e: MessageEvent) => {
