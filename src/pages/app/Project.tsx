@@ -10,6 +10,8 @@ import {
   Calculator,
   FileText,
   ScrollText,
+  FileSignature,
+  Lock,
   Layers,
   TrendingDown,
   Pencil,
@@ -21,7 +23,7 @@ import { getStats, setPriceCity, materials, findMaterialFuzzy, RISK_LABEL, RISK_
 import type { PhaseKey } from "@/components/three/BuildingModel";
 import { useAudit, useProjects, useProjectMeshes, useProjectOverrides, useProjectRebar, useProjectElementGroups, setProjectPhasePct, pushAudit, auditStamp, currentAuditUser } from "@/data/store";
 import { setProjectPriceOverride, useProjectPriceOverrides, type PriceOverride } from "@/data/projects";
-import { exportBoQPDF, exportBoQExcel } from "@/lib/exports";
+import { exportBoQPDF, exportBoQExcel, exportAuditPDF } from "@/lib/exports";
 import { buildBoQSource, boqGrandTotal, boqLineKey, boqDetailMatKey, type BoQSource } from "@/lib/boqSource";
 import { buildDetailedBoQ, type DetailedPhase } from "@/lib/detailedBoq";
 import type { Project as ProjectRecord } from "@/data/projects";
