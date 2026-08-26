@@ -1297,52 +1297,6 @@ function AuditLogView({ projectName }: { projectName: string }) {
   );
 }
 
-function _unusedRemoved() {
-  return (
-    <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
-      <div className="px-5 py-3 border-b border-border flex items-center gap-2">
-        <ScrollText className="size-4 text-accent" />
-        <span className="text-sm">Acções registadas na sua conta · {entries.length} entradas</span>
-      </div>
-      {entries.length === 0 ? (
-        <div className="p-10 text-center text-sm text-muted-foreground">
-          Sem dados — ainda não há acções registadas nesta conta.
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/60 text-muted-foreground text-xs uppercase tracking-wider">
-              <tr>
-                <th className="px-4 py-3 text-left">Data / Hora</th>
-                <th className="px-4 py-3 text-left">Utilizador</th>
-                <th className="px-4 py-3 text-left">Item</th>
-                <th className="px-4 py-3 text-left">Anterior</th>
-                <th className="px-4 py-3 text-left">Novo</th>
-                <th className="px-4 py-3">Δ%</th>
-                <th className="px-4 py-3 text-left">Justificativa</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {entries.map((e, i) => (
-                <tr key={i} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{e.dt}</td>
-                  <td className="px-4 py-3">{e.user}</td>
-                  <td className="px-4 py-3 font-medium">{e.item}</td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{e.from}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{e.to}</td>
-                  <td className={`px-4 py-3 text-center font-mono ${e.delta > 10 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                    {e.delta > 0 ? `+${e.delta}%` : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground max-w-sm">{e.just}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ===================== RELATÓRIO =====================
 function RelatorioView({
