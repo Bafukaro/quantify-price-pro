@@ -51,6 +51,8 @@ export default function Project() {
   // Preços resolvidos pela localização do projecto (Maputo vs Lichinga, etc.)
   setPriceCity(project?.location);
   const [active, setActive] = useState<TabKey>("resumo");
+  // Clique num elemento 3D → destacar a secção correspondente no Orçamento.
+  const [boqHighlight, setBoqHighlight] = useState<{ phase: PhaseKey; ts: number } | null>(null);
   useEffect(() => {
     const t = params.get("tab") as TabKey | null;
     if (t && TABS.some((x) => x.key === t)) setActive(t);
@@ -64,6 +66,12 @@ export default function Project() {
     [project?.location, meshes, overrides, rebar, priceOverrides]
   );
   const editedPrices = Object.keys(priceOverrides).length;
+  // Badge do Audit Log: entradas das últimas 24h.
+  const auditEntries = useAudit();
+  const audit24h = useMemo(() => {
+    const cutoff = Date.now() - 24 * 3600 * 1000;
+    return auditEntries.filter((e) => new Date(e.dt.replace(" ", "T")).getTime() >= cutoff).length;
+  }, [auditEntries]);
 
   if (!project) {
     return (
@@ -108,17 +116,31 @@ export default function Project() {
             label={t.label}
             active={active === t.key}
             onClick={() => setActive(t.key)}
-            badge={t.key === "orcamento" && editedPrices > 0 ? `${editedPrices} preços editados` : undefined}
+            badge={
+              t.key === "orcamento" && editedPrices > 0
+                ? `${editedPrices} preços editados`
+                : t.key === "auditlog" && audit24h > 0
+                ? `${audit24h} / 24h`
+                : undefined
+            }
           />
         ))}
       </div>
 
       {active === "resumo" && <ResumoView project={project} boq={boq} total={total} />}
-      {active === "vista3d" && <Model3D projectId={project.id} />}
+      {active === "vista3d" && (
+        <Model3D
+          projectId={project.id}
+          onBoQNavigate={(phase) => {
+            setBoqHighlight({ phase, ts: Date.now() });
+            setActive("orcamento");
+          }}
+        />
+      )}
       {active === "calculos" && <CalculosView />}
-      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} />}
+      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} highlight={boqHighlight} />}
       {active === "cronograma" && <CronogramaView project={project} />}
-      {active === "auditlog" && <AuditLogView />}
+      {active === "auditlog" && <AuditLogView projectName={project.name} />}
       {active === "relatorio" && <RelatorioView project={project} boq={boq} total={total} ivaPct={ivaPct} contPct={contPct} />}
     </div>
   );
@@ -534,6 +556,7 @@ function OrcamentoView({
                         preco={l.preco}
                         priced={l.priced}
                         edited={l.edited}
+                        materialId={l.materialId}
                         onSave={(price, meta) =>
                           savePrice(boqLineKey(key, l.item), `${l.item} — ${l.desc}`, l.un, l.edited?.original ?? l.preco, price, meta)
                         }
