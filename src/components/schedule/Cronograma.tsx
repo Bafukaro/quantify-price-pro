@@ -14,10 +14,17 @@ import {
 } from "lucide-react";
 import { phaseColors } from "@/data/mock";
 import { useAuth } from "@/hooks/useAuth";
-import { setProjectPhasePct, useProjectElementGroups, useProjectQuantities } from "@/data/store";
+import {
+  auditStamp,
+  pushAudit,
+  setProjectPhasePct,
+  useProjectElementGroups,
+  useProjectQuantities,
+} from "@/data/store";
 import type { Project as ProjectRecord } from "@/data/projects";
 import {
   addDailyReport,
+  addProgressEntry,
   addScheduleTask,
   confirmedQty,
   currentWeek,
