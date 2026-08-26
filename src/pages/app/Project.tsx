@@ -376,6 +376,9 @@ function OrcamentoView({
   const groups = useProjectElementGroups(projectId);
   const detailed = useMemo(() => buildDetailedBoQ(groups), [groups]);
   const [mode, setMode] = useState<"fases" | "detalhado">(groups.length ? "detalhado" : "fases");
+  // Banner de transparência do aço — dispensável por fase, só nesta sessão.
+  const [steelDismissed, setSteelDismissed] = useState<Set<string>>(new Set());
+  const dismissSteel = (k: string) => setSteelDismissed((s) => new Set(s).add(k));
 
   return (
     <div className="space-y-5">
@@ -429,6 +432,22 @@ function OrcamentoView({
               </div>
               <div className="font-mono text-sm">{fmtMT(sec.total)}</div>
             </div>
+            {!boq.rebar && sec.lines.some((l) => l.isSteel) && !steelDismissed.has(key) && (
+              <div className="flex items-start gap-3 px-5 py-3 bg-warning/10 border-b border-warning/30">
+                <AlertTriangle className="size-4 text-warning shrink-0 mt-0.5" />
+                <p className="flex-1 text-xs leading-relaxed text-muted-foreground">
+                  <span className="font-medium text-foreground">Aço A500 estimado por rácio kg/m³ de betão</span> — ficheiro
+                  IFC não contém armadura modelada (IfcReinforcingBar). Para extracção exacta, carregue um modelo
+                  estrutural com armaduras definidas.
+                </p>
+                <button
+                  onClick={() => dismissSteel(key)}
+                  className="shrink-0 text-[11px] font-medium text-muted-foreground border border-border rounded px-2 py-1 hover:bg-muted"
+                >
+                  Dispensar
+                </button>
+              </div>
+            )}
             <table className="w-full text-sm">
               <thead className="bg-muted/40 text-muted-foreground text-xs uppercase tracking-wider">
                 <tr>
