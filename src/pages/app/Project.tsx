@@ -424,6 +424,27 @@ function OrcamentoView({
   const [steelDismissed, setSteelDismissed] = useState<Set<string>>(new Set());
   const dismissSteel = (k: string) => setSteelDismissed((s) => new Set(s).add(k));
 
+  // Clique 3D → BoQ: força o modo "fases", scrolla para a secção e
+  // realça-a durante 3 segundos.
+  const [hl, setHl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!highlight) return;
+    if (!boq.order.includes(highlight.phase)) return;
+    setMode("fases");
+    setHl(highlight.phase);
+    const t1 = setTimeout(() => {
+      document
+        .getElementById(`boq-sec-${highlight.phase}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    const t2 = setTimeout(() => setHl(null), 3000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlight?.ts]);
+
   /** Guarda o preço editado no projecto e regista no Audit Log (imutável). */
   const savePrice = async (
     key: string,
@@ -503,7 +524,13 @@ function OrcamentoView({
 
         const sec = boq.sections[key];
         return (
-          <div key={key} className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
+          <div
+            key={key}
+            id={`boq-sec-${key}`}
+            className={`rounded-xl bg-surface-elevated border shadow-soft overflow-hidden transition-all duration-500 ${
+              hl === key ? "border-warning ring-2 ring-warning/60 bg-warning/5" : "border-border"
+            }`}
+          >
             <div className="px-5 py-3 border-b border-border bg-muted/30 flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <div className="font-display text-base">{sec.label}</div>
