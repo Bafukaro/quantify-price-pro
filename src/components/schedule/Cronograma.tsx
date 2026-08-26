@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   Camera,
@@ -21,9 +21,12 @@ import {
   currentWeek,
   deleteDailyReport,
   deleteScheduleTask,
+  isScheduleLoaded,
+  isTemplateCritical,
   pendingQty,
   realPct,
   reviewDailyReport,
+  seedScheduleTemplate,
   updateScheduleTask,
   useSchedule,
   type DailyReport,
@@ -36,6 +39,21 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 function phaseColor(phases: string[], phase: string) {
   const i = Math.max(0, phases.indexOf(phase));
   return phaseColors[`F${i % 6}`];
+}
+
+/** Lista ordenada de fases: primeiro as que aparecem nas tarefas (ordem do Gantt),
+ *  depois as restantes fases do projecto. Garante cor consistente por nome. */
+function buildPhaseList(phaseNames: string[], tasks: ScheduleTask[]) {
+  const names: string[] = [];
+  [...tasks]
+    .sort((a, b) => a.startWeek - b.startWeek)
+    .forEach((t) => {
+      if (t.phase && !names.includes(t.phase)) names.push(t.phase);
+    });
+  phaseNames.forEach((p) => {
+    if (p && !names.includes(p)) names.push(p);
+  });
+  return names;
 }
 
 type Sub = "gantt" | "reports" | "fases";
