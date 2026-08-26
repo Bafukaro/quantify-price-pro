@@ -690,6 +690,170 @@ function GanttRow({
   );
 }
 
+// ===================== DRAWER: REGISTAR PROGRESSO =====================
+
+function ProgressDrawer({
+  project,
+  task,
+  reports,
+  userEmail,
+  onClose,
+}: {
+  project: ProjectRecord;
+  task: ScheduleTask;
+  reports: DailyReport[];
+  userEmail: string;
+  onClose: () => void;
+}) {
+  const [qty, setQty] = useState<number>(0);
+  const [date, setDate] = useState(todayISO());
+  const [note, setNote] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const accumulated = confirmedQty(reports, task.id);
+  const previewTotal = accumulated + (Number(qty) || 0);
+  const previewPct =
+    task.targetQty > 0 ? Math.min(100, Math.round((previewTotal / task.targetQty) * 100)) : null;
+
+  const save = async () => {
+    if (!qty || qty <= 0) return setErr("Indique a quantidade realizada hoje.");
+    setBusy(true);
+    const prevTotal = accumulated;
+    const res = await addProgressEntry({
+      projectId: project.id,
+      taskId: task.id,
+      date,
+      qty: Number(qty),
+      note: note.trim(),
+      reporter: userEmail,
+      file,
+    });
+    setBusy(false);
+    if (res.error) return setErr(res.error);
+    // Entrada imutável no Audit Log.
+    const pct = task.targetQty > 0 ? Math.round((res.total / task.targetQty) * 100) : 0;
+    pushAudit({
+      dt: auditStamp(),
+      user: userEmail,
+      item: `Progresso registado — ${task.name}`,
+      from: `${prevTotal} ${task.unit}`,
+      to: `+${qty} ${task.unit} · total ${res.total} ${task.unit}`,
+      delta: 0,
+      just: `Acumulado: ${res.total} ${task.unit} (${pct}%)${note.trim() ? ` · ${note.trim()}` : ""}`,
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <aside className="absolute right-0 top-0 h-full w-full max-w-md bg-surface-elevated border-l border-border shadow-elegant flex flex-col animate-fade-in">
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
+          <div>
+            <div className="font-display text-lg">Registar progresso</div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {task.name} · alvo {task.targetQty || "—"} {task.unit}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className="rounded-lg bg-muted/40 border border-border px-3 py-2 text-xs text-muted-foreground">
+            Acumulado até agora:{" "}
+            <span className="font-mono text-foreground">
+              {accumulated} {task.unit}
+            </span>
+            {task.targetQty > 0 && (
+              <>
+                {" "}de <span className="font-mono text-foreground">{task.targetQty} {task.unit}</span>
+              </>
+            )}
+          </div>
+
+          <label className="block">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Quantidade realizada hoje ({task.unit})
+            </span>
+            <input
+              type="number"
+              min={0}
+              autoFocus
+              value={qty || ""}
+              onChange={(e) => setQty(Number(e.target.value))}
+              placeholder={`ex.: 12 ${task.unit}`}
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:border-accent focus:outline-none"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Data do registo
+            </span>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent focus:outline-none"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Observação (opcional)
+            </span>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={2}
+              placeholder="ex.: paragem por chuva à tarde"
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent focus:outline-none resize-none"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Foto (opcional, máx. 1)
+            </span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="mt-1 w-full text-xs"
+            />
+            {file && <div className="mt-1 text-[11px] text-muted-foreground">{file.name}</div>}
+          </label>
+
+          {qty > 0 && (
+            <div className="rounded-lg border border-success/40 bg-success/10 px-3 py-2 text-xs">
+              Após guardar:{" "}
+              <span className="font-mono font-medium">
+                {previewTotal} {task.unit}
+                {previewPct !== null && ` (${previewPct}%)`}
+              </span>
+            </div>
+          )}
+          {err && <div className="text-xs text-destructive">{err}</div>}
+        </div>
+
+        <div className="border-t border-border p-5">
+          <button
+            onClick={() => void save()}
+            disabled={busy}
+            className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          >
+            {busy ? "A guardar…" : "Guardar registo"}
+          </button>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
     <div className="p-5 rounded-xl bg-surface-elevated border border-border shadow-soft">
