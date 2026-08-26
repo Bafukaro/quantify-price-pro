@@ -182,6 +182,70 @@ export async function deleteScheduleTask(id: string) {
   if (error) console.error("deleteScheduleTask", error);
 }
 
+// ---------------- cronograma tipo (pré-preenchimento MALANGA) ----------------
+
+export type TemplateTask = {
+  name: string;
+  phase: string;
+  startWeek: number; // 0-based
+  durWeeks: number;
+  critical: boolean;
+};
+
+export const SCHEDULE_TEMPLATE: TemplateTask[] = [
+  { name: "Limpeza e implantação do terreno", phase: "Preliminares", startWeek: 0, durWeeks: 2, critical: false },
+  { name: "Escavação e compactação", phase: "Fundação", startWeek: 2, durWeeks: 3, critical: true },
+  { name: "Sapatas e maciços de fundação", phase: "Fundação", startWeek: 4, durWeeks: 4, critical: true },
+  { name: "Pilares R/Chão (betão + cofr. + aço)", phase: "Estrutura", startWeek: 8, durWeeks: 4, critical: true },
+  { name: "Laje de cobertura R/Chão", phase: "Estrutura", startWeek: 11, durWeeks: 4, critical: true },
+  { name: "Pilares Piso 1", phase: "Estrutura", startWeek: 14, durWeeks: 3, critical: false },
+  { name: "Alvenaria interior e exterior", phase: "Alvenaria", startWeek: 16, durWeeks: 5, critical: true },
+  { name: "Cobertura IBR + impermeabilização", phase: "Cobertura", startWeek: 20, durWeeks: 3, critical: true },
+  { name: "Instalações eléctricas", phase: "Instalações", startWeek: 21, durWeeks: 4, critical: false },
+  { name: "Instalações hidráulicas", phase: "Instalações", startWeek: 22, durWeeks: 4, critical: false },
+  { name: "Pavimentos e revestimentos", phase: "Acabamentos", startWeek: 25, durWeeks: 4, critical: false },
+  { name: "Pinturas interiores e exteriores", phase: "Acabamentos", startWeek: 27, durWeeks: 4, critical: true },
+  { name: "Vistoria e entrega", phase: "Exteriores", startWeek: 31, durWeeks: 2, critical: true },
+];
+
+/** Caminho crítico declarado (folga zero): Escavação → Sapatas → Pilares R/C → Laje → Alvenaria → Cobertura → Pintura → Entrega. */
+export const isTemplateCritical = (name: string) =>
+  SCHEDULE_TEMPLATE.some((t) => t.critical && t.name === name);
+
+export const isScheduleLoaded = (projectId: string) => loadedProjects.has(projectId);
+
+const seeding = new Set<string>();
+const SEED_KEY = (id: string) => `sqi.schedule.seeded.${id}`;
+
+/** Insere o cronograma tipo (13 tarefas) na base de dados — uma única vez por projecto. */
+export async function seedScheduleTemplate(projectId: string): Promise<string | null> {
+  if (!projectId || seeding.has(projectId)) return null;
+  if (typeof window !== "undefined" && localStorage.getItem(SEED_KEY(projectId))) return null;
+  seeding.add(projectId);
+  try {
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) return "Sessão expirada.";
+    const rows = SCHEDULE_TEMPLATE.map((t) => ({
+      owner_id: auth.user.id,
+      project_id: projectId,
+      name: t.name,
+      phase: t.phase,
+      start_week: t.startWeek,
+      dur_weeks: t.durWeeks,
+      target_qty: 0,
+      unit: "un",
+    }));
+    const { data, error } = await supabase.from("schedule_tasks").insert(rows as any).select("*");
+    if (error) return error.message;
+    tasks = [...tasks, ...(data ?? []).map(mapTask)];
+    emit();
+    if (typeof window !== "undefined") localStorage.setItem(SEED_KEY(projectId), "1");
+    return null;
+  } finally {
+    seeding.delete(projectId);
+  }
+}
+
 // ---------------- daily reports ----------------
 
 export async function addDailyReport(input: {

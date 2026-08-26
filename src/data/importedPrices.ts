@@ -346,18 +346,24 @@ export const importedMaterials: Material[] = [
     id: "m-manta-betuminosa-torch-on-4-mm-app", name: "Manta betuminosa torch-on 4 mm (APP)", unit: "m²", category: "Impermeabilização",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 650.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 695.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 710.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
     id: "m-primario-betuminoso", name: "Primário betuminoso", unit: "L", category: "Impermeabilização",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 280.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 298.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 310.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
     id: "m-impermeabilizante-acrilico-balde-20-l", name: "Impermeabilizante acrílico (balde 20 L)", unit: "balde", category: "Impermeabilização",
     quotes: [
       { supplierId: "s-somofer", price: 6900.0, date: "2026-04-14", city: "Maputo", note: "Real-informado – ancorado em Multiseal Plascon Somofer" },
+      { supplierId: "s-ferragens-polana", price: 7200.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 7450.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
