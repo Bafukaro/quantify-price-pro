@@ -2,7 +2,7 @@ import type { PhaseKey } from "@/components/three/BuildingModel";
 import { phase3DInfo } from "@/data/mock";
 import { setPriceCity } from "@/data/priceDb";
 import { aggregateByPhase, phaseDesc, phaseLabel, phaseLines, PHASES } from "@/lib/phaseQuantities";
-import type { StoredMeshInfo } from "@/data/projects";
+import type { StoredMeshInfo, PriceOverride } from "@/data/projects";
 import type { RebarTakeoff } from "@/lib/rebar";
 
 export type BoQLine = {
@@ -14,7 +14,14 @@ export type BoQLine = {
   priced: boolean;
   materialId: string | null;
   isSteel: boolean;
+  /** Presente quando o preço foi substituído manualmente pelo engenheiro. */
+  edited?: PriceOverride;
 };
+
+/** Chave estável de uma linha do BoQ por fase: "<fase>::<artigo>". */
+export const boqLineKey = (phase: string, item: string) => `${phase}::${item}`;
+/** Chave de um material do BoQ detalhado: "det::<artigo>::<material>". */
+export const boqDetailMatKey = (code: string, item: string) => `det::${code}::${item}`;
 
 export type BoQSection = {
   key: PhaseKey;
@@ -50,25 +57,41 @@ export function buildBoQSource(opts: {
   meshes: StoredMeshInfo[];
   overrides: Record<string, PhaseKey>;
   rebar?: RebarTakeoff | null;
+  priceOverrides?: Record<string, PriceOverride>;
 }): BoQSource {
   setPriceCity(opts.location);
+  const po = opts.priceOverrides ?? {};
   const hasReal = opts.meshes.length > 0;
   const { byPhase, elementsTotal, invalidTotal } = aggregateByPhase(opts.meshes as any, opts.overrides);
   const sections = {} as Record<PhaseKey, BoQSection>;
   for (const p of PHASES) {
     const q = byPhase[p];
     const lines: BoQLine[] = hasReal
-      ? phaseLines(p, q).map((l) => ({
-          item: l.item,
-          desc: l.desc,
-          un: l.un,
-          qty: l.qty,
-          preco: l.preco,
-          priced: l.priced,
-          materialId: l.materialId,
-          isSteel: l.isSteel,
-        }))
-      : phase3DInfo[p].items.map((i) => ({ ...i, priced: true, materialId: null, isSteel: false }));
+      ? phaseLines(p, q).map((l) => {
+          const ov = po[boqLineKey(p, l.item)];
+          return {
+            item: l.item,
+            desc: l.desc,
+            un: l.un,
+            qty: l.qty,
+            preco: ov ? ov.price : l.preco,
+            priced: l.priced || !!ov,
+            materialId: l.materialId,
+            isSteel: l.isSteel,
+            edited: ov,
+          };
+        })
+      : phase3DInfo[p].items.map((i) => {
+          const ov = po[boqLineKey(p, i.item)];
+          return {
+            ...i,
+            preco: ov ? ov.price : i.preco,
+            priced: true,
+            materialId: null,
+            isSteel: false,
+            edited: ov,
+          };
+        });
     sections[p] = {
       key: p,
       label: hasReal ? phaseLabel(p) : phase3DInfo[p].label,

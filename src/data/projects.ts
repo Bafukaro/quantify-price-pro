@@ -22,6 +22,17 @@ export type StoredMeshInfo = {
 
 export type ProjectPhase = { name: string; pct: number };
 
+/** Substituição manual de um preço do BoQ (persistida em projects.price_overrides). */
+export type PriceOverride = {
+  price: number;
+  original: number;
+  by: string;
+  at: string;
+  reason: string;
+  supplier: string;
+  note?: string;
+};
+
 export type Project = {
   id: string;
   name: string;
@@ -38,6 +49,7 @@ export type Project = {
   meshes: StoredMeshInfo[];
   overrides: Record<string, PhaseKey>;
   quantities: Record<string, unknown> | null;
+  priceOverrides: Record<string, PriceOverride>;
 };
 
 export type ProjectModelState = {
@@ -95,6 +107,7 @@ function mapRow(r: any): Project {
     meshes: (r.meshes as StoredMeshInfo[]) ?? [],
     overrides: (r.overrides as Record<string, PhaseKey>) ?? {},
     quantities: (r.quantities as Record<string, unknown>) ?? null,
+    priceOverrides: (r.price_overrides as Record<string, PriceOverride>) ?? {},
   };
 }
 
@@ -354,6 +367,34 @@ export function useProjectElementGroups(projectId: string): ElementGroup[] {
   useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const p = projects.find((x) => x.id === projectId);
   return ((p?.quantities as any)?.elementGroups as ElementGroup[]) ?? [];
+}
+
+/** Quantidades agregadas por fase (byPhase) persistidas no projecto. */
+export function useProjectQuantities(projectId: string): Record<string, { volumeM3: number; areaM2: number; elements: number }> | null {
+  useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const p = projects.find((x) => x.id === projectId);
+  return ((p?.quantities as any)?.byPhase as Record<string, { volumeM3: number; areaM2: number; elements: number }>) ?? null;
+}
+
+// ---------------- preços editados manualmente no BoQ ----------------
+
+export function useProjectPriceOverrides(projectId: string): Record<string, PriceOverride> {
+  useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  return projects.find((x) => x.id === projectId)?.priceOverrides ?? {};
+}
+
+/** Guarda (ou remove, com null) a substituição manual de um preço do BoQ. */
+export async function setProjectPriceOverride(
+  projectId: string,
+  key: string,
+  ov: PriceOverride | null
+) {
+  const p = projects.find((x) => x.id === projectId);
+  if (!p) return;
+  const next = { ...p.priceOverrides };
+  if (ov) next[key] = ov;
+  else delete next[key];
+  await patchProject(projectId, { price_overrides: next }, { priceOverrides: next });
 }
 
 

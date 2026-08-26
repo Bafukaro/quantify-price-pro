@@ -1,6 +1,8 @@
 import type { PhaseKey } from "@/components/three/BuildingModel";
 import type { ElementGroup } from "@/workers/ifcWorker";
 import { PHASES, phaseLabel, phaseLines, type QtyLine } from "@/lib/phaseQuantities";
+import { boqDetailMatKey } from "@/lib/boqSource";
+import type { PriceOverride } from "@/data/projects";
 
 /**
  * BoQ DETALHADO — transforma os grupos de elementos extraídos do IFC
@@ -197,7 +199,8 @@ function describe(g: ElementGroup) {
 /** Agrupa por fase e devolve o BoQ detalhado pronto para ecrã/exportação. */
 export function buildDetailedBoQ(
   groups: ElementGroup[],
-  overridePhase?: (ifcClass: string) => PhaseKey | undefined
+  overridePhase?: (ifcClass: string) => PhaseKey | undefined,
+  priceOverrides?: Record<string, PriceOverride>
 ): DetailedPhase[] {
   const byPhase = new Map<PhaseKey, DetailedLine[]>();
   const sorted = [...groups].sort((a, b) => b.volumeM3 - a.volumeM3 || b.count - a.count);
@@ -233,10 +236,20 @@ export function buildDetailedBoQ(
   });
 
   return PHASES.filter((p) => (byPhase.get(p)?.length ?? 0) > 0).map((p, pi) => {
-    const lines = (byPhase.get(p) ?? []).map((l, i) => ({
-      ...l,
-      code: `${pi + 1}.${i + 1}`,
-    }));
+    const lines = (byPhase.get(p) ?? []).map((l, i) => {
+      const code = `${pi + 1}.${i + 1}`;
+      // Aplica substituições manuais de preço (persistidas no projecto).
+      const materials = l.materials.map((m) => {
+        const ov = priceOverrides?.[boqDetailMatKey(code, m.item)];
+        return ov ? { ...m, preco: ov.price, priced: true } : m;
+      });
+      return {
+        ...l,
+        code,
+        materials,
+        total: materials.reduce((a, m) => a + m.qty * m.preco, 0),
+      };
+    });
     return {
       phase: p,
       label: phaseLabel(p),

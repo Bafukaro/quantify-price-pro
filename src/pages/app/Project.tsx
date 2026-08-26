@@ -12,11 +12,15 @@ import {
   ScrollText,
   Layers,
   TrendingDown,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { getStats, setPriceCity } from "@/data/priceDb";
-import { useAudit, useProjects, useProjectMeshes, useProjectOverrides, useProjectRebar, useProjectElementGroups, setProjectPhasePct } from "@/data/store";
+import { useAudit, useProjects, useProjectMeshes, useProjectOverrides, useProjectRebar, useProjectElementGroups, setProjectPhasePct, pushAudit, auditStamp, currentAuditUser } from "@/data/store";
+import { setProjectPriceOverride, useProjectPriceOverrides, type PriceOverride } from "@/data/projects";
 import { exportBoQPDF, exportBoQExcel } from "@/lib/exports";
-import { buildBoQSource, boqGrandTotal, type BoQSource } from "@/lib/boqSource";
+import { buildBoQSource, boqGrandTotal, boqLineKey, boqDetailMatKey, type BoQSource } from "@/lib/boqSource";
 import { buildDetailedBoQ, type DetailedPhase } from "@/lib/detailedBoq";
 import type { Project as ProjectRecord } from "@/data/projects";
 import Model3D from "@/pages/app/Model3D";
@@ -41,6 +45,7 @@ export default function Project() {
   const meshes = useProjectMeshes(project?.id ?? "");
   const overrides = useProjectOverrides(project?.id ?? "");
   const rebar = useProjectRebar(project?.id ?? "");
+  const priceOverrides = useProjectPriceOverrides(project?.id ?? "");
   // Preços resolvidos pela localização do projecto (Maputo vs Lichinga, etc.)
   setPriceCity(project?.location);
   const [active, setActive] = useState<TabKey>("resumo");
@@ -53,9 +58,10 @@ export default function Project() {
 
   // Fonte única do BoQ — a mesma que alimenta o ecrã e as exportações.
   const boq = useMemo(
-    () => buildBoQSource({ location: project?.location, meshes, overrides, rebar }),
-    [project?.location, meshes, overrides, rebar]
+    () => buildBoQSource({ location: project?.location, meshes, overrides, rebar, priceOverrides }),
+    [project?.location, meshes, overrides, rebar, priceOverrides]
   );
+  const editedPrices = Object.keys(priceOverrides).length;
 
   if (!project) {
     return (
@@ -95,14 +101,20 @@ export default function Project() {
       {/* Tabs */}
       <div className="flex flex-wrap gap-1 border-b border-border">
         {TABS.map((t) => (
-          <TabBtn key={t.key} label={t.label} active={active === t.key} onClick={() => setActive(t.key)} />
+          <TabBtn
+            key={t.key}
+            label={t.label}
+            active={active === t.key}
+            onClick={() => setActive(t.key)}
+            badge={t.key === "orcamento" && editedPrices > 0 ? `${editedPrices} preços editados` : undefined}
+          />
         ))}
       </div>
 
       {active === "resumo" && <ResumoView project={project} boq={boq} total={total} />}
       {active === "vista3d" && <Model3D projectId={project.id} />}
       {active === "calculos" && <CalculosView />}
-      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} />}
+      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} />}
       {active === "cronograma" && <CronogramaView project={project} />}
       {active === "auditlog" && <AuditLogView />}
       {active === "relatorio" && <RelatorioView project={project} boq={boq} total={total} ivaPct={ivaPct} contPct={contPct} />}
@@ -110,7 +122,7 @@ export default function Project() {
   );
 }
 
-function TabBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function TabBtn({ label, active, onClick, badge }: { label: string; active: boolean; onClick: () => void; badge?: string }) {
   return (
     <button
       onClick={onClick}
@@ -119,6 +131,9 @@ function TabBtn({ label, active, onClick }: { label: string; active: boolean; on
       }`}
     >
       {label}
+      {badge && (
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/15 text-accent font-medium">{badge}</span>
+      )}
     </button>
   );
 }
@@ -362,23 +377,57 @@ function OrcamentoView({
   projectName,
   projectId,
   boq,
+  priceOverrides,
 }: {
   ivaPct: number;
   contPct: number;
   projectName: string;
   projectId: string;
   boq: BoQSource;
+  priceOverrides: Record<string, PriceOverride>;
 }) {
   const subtotalGeral = boqGrandTotal(boq);
   const contingencia = subtotalGeral * contPct;
   const iva = subtotalGeral * ivaPct;
   const total = subtotalGeral + contingencia + iva;
   const groups = useProjectElementGroups(projectId);
-  const detailed = useMemo(() => buildDetailedBoQ(groups), [groups]);
+  const detailed = useMemo(() => buildDetailedBoQ(groups, undefined, priceOverrides), [groups, priceOverrides]);
   const [mode, setMode] = useState<"fases" | "detalhado">(groups.length ? "detalhado" : "fases");
   // Banner de transparência do aço — dispensável por fase, só nesta sessão.
   const [steelDismissed, setSteelDismissed] = useState<Set<string>>(new Set());
   const dismissSteel = (k: string) => setSteelDismissed((s) => new Set(s).add(k));
+
+  /** Guarda o preço editado no projecto e regista no Audit Log (imutável). */
+  const savePrice = async (
+    key: string,
+    label: string,
+    un: string,
+    original: number,
+    price: number,
+    meta: { supplier: string; reason: string; note: string }
+  ) => {
+    const user = currentAuditUser();
+    const at = new Date().toISOString();
+    await setProjectPriceOverride(projectId, key, {
+      price,
+      original,
+      by: user,
+      at,
+      reason: meta.reason,
+      supplier: meta.supplier,
+      note: meta.note || undefined,
+    });
+    const delta = original > 0 ? Math.round(((price - original) / original) * 100) : 0;
+    pushAudit({
+      dt: auditStamp(),
+      user,
+      item: `BoQ ${label}`,
+      from: `${original.toLocaleString("pt-PT")} MT/${un}`,
+      to: `${price.toLocaleString("pt-PT")} MT/${un}`,
+      delta,
+      just: `${meta.reason} · ${meta.supplier}${meta.note ? ` · ${meta.note}` : ""}`,
+    });
+  };
 
   return (
     <div className="space-y-5">
@@ -414,7 +463,14 @@ function OrcamentoView({
         </div>
       )}
 
-      {mode === "detalhado" && detailed.map((sec) => <DetailedPhaseTable key={sec.phase} sec={sec} />)}
+      {mode === "detalhado" && detailed.map((sec) => (
+        <DetailedPhaseTable
+          key={sec.phase}
+          sec={sec}
+          priceOverrides={priceOverrides}
+          onSave={(key, label, un, original, price, meta) => savePrice(key, label, un, original, price, meta)}
+        />
+      ))}
 
       {mode === "fases" && boq.order.map((key) => {
 
@@ -461,7 +517,7 @@ function OrcamentoView({
               </thead>
               <tbody className="divide-y divide-border">
                 {sec.lines.map((l) => (
-                  <tr key={l.item} className="hover:bg-muted/30">
+                  <tr key={l.item} className="hover:bg-muted/30 group">
                     <td className="px-4 py-2.5 font-mono">{l.item}</td>
                     <td className="px-4 py-2.5">{l.desc}</td>
                     <td className="px-4 py-2.5 text-right text-muted-foreground">{l.un}</td>
@@ -469,7 +525,17 @@ function OrcamentoView({
                       {l.qty.toLocaleString("pt-PT", { maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono">
-                      {l.priced ? l.preco.toLocaleString("pt-PT") : <span className="text-warning">sem preço</span>}
+                      <PriceCell
+                        lineKey={boqLineKey(key, l.item)}
+                        label={`${l.item} — ${l.desc}`}
+                        un={l.un}
+                        preco={l.preco}
+                        priced={l.priced}
+                        edited={l.edited}
+                        onSave={(price, meta) =>
+                          savePrice(boqLineKey(key, l.item), `${l.item} — ${l.desc}`, l.un, l.edited?.original ?? l.preco, price, meta)
+                        }
+                      />
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono font-medium">
                       {Math.round(l.qty * l.preco).toLocaleString("pt-PT")}
@@ -506,8 +572,207 @@ function OrcamentoView({
   );
 }
 
+const REASONS = [
+  "Fornecedor específico exigido",
+  "Actualização de cotação de mercado",
+  "Preço negociado com fornecedor",
+  "Condições logísticas do local",
+  "Outro",
+] as const;
+
+type PriceMeta = { supplier: string; reason: string; note: string };
+
+/**
+ * Célula de P.U. editável: lápis no hover → edição inline → modal de justificação
+ * (fornecedor + motivo + observações). Desvios >15% da mediana ficam marcados.
+ */
+function PriceCell({
+  label,
+  un,
+  preco,
+  priced,
+  edited,
+  onSave,
+}: {
+  lineKey?: string;
+  label: string;
+  un: string;
+  preco: number;
+  priced: boolean;
+  edited?: PriceOverride;
+  onSave: (price: number, meta: PriceMeta) => Promise<void> | void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState("");
+  const [newPrice, setNewPrice] = useState<number | null>(null);
+  const [supplier, setSupplier] = useState("");
+  const [reason, setReason] = useState<string>(REASONS[0]);
+  const [note, setNote] = useState("");
+  const original = edited?.original ?? preco;
+  const deviation = newPrice !== null && original > 0 ? ((newPrice - original) / original) * 100 : 0;
+
+  const confirm = () => {
+    const n = Number(val.replace(",", "."));
+    if (!Number.isFinite(n) || n <= 0) return;
+    setNewPrice(n);
+  };
+  const commit = async () => {
+    if (newPrice === null) return;
+    await onSave(newPrice, { supplier: supplier || "n/d", reason, note });
+    setEditing(false);
+    setNewPrice(null);
+    setVal("");
+    setSupplier("");
+    setNote("");
+  };
+  const close = () => {
+    setEditing(false);
+    setNewPrice(null);
+    setVal("");
+  };
+
+  return (
+    <>
+      <div className="inline-flex items-center justify-end gap-1.5 w-full">
+        {edited && (
+          <span
+            className="size-1.5 rounded-full bg-accent shrink-0"
+            title={`Preço editado por ${edited.by} em ${new Date(edited.at).toLocaleString("pt-PT")} — mediana ${edited.original.toLocaleString("pt-PT")} MT/${un} (${edited.reason} · ${edited.supplier})`}
+          />
+        )}
+        {editing ? (
+          <>
+            <input
+              autoFocus
+              value={val}
+              onChange={(e) => setVal(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirm();
+                if (e.key === "Escape") close();
+              }}
+              placeholder={String(Math.round(original))}
+              className="w-24 rounded border border-accent bg-background px-2 py-1 text-right font-mono text-xs focus:outline-none"
+            />
+            <button onClick={confirm} aria-label="Confirmar preço" className="text-accent hover:opacity-80">
+              <Check className="size-3.5" />
+            </button>
+            <button onClick={close} aria-label="Cancelar edição" className="text-muted-foreground hover:text-foreground">
+              <X className="size-3.5" />
+            </button>
+          </>
+        ) : (
+          <>
+            <span className={edited ? "text-accent font-medium" : ""}>
+              {priced || edited ? preco.toLocaleString("pt-PT") : <span className="text-warning">sem preço</span>}
+            </span>
+            <button
+              onClick={() => {
+                setEditing(true);
+                setVal(String(Math.round(preco)));
+              }}
+              aria-label={`Editar preço de ${label}`}
+              className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-accent transition"
+            >
+              <Pencil className="size-3" />
+            </button>
+          </>
+        )}
+      </div>
+
+      {newPrice !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setNewPrice(null)} />
+          <div className="relative w-full max-w-md rounded-2xl bg-surface-elevated border border-border p-5 shadow-elegant">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-display text-lg">Justificar alteração de preço</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+              </div>
+              <button onClick={() => setNewPrice(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-border bg-muted/30 px-3 py-2 flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Original: <span className="font-mono">{original.toLocaleString("pt-PT")} MT/{un}</span></span>
+              <span className="text-muted-foreground">→</span>
+              <span className="text-foreground">Novo: <span className="font-mono font-medium text-accent">{newPrice.toLocaleString("pt-PT")} MT/{un}</span></span>
+            </div>
+            {Math.abs(deviation) > 15 && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2">
+                <AlertTriangle className="size-4 text-warning shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  Desvio de {deviation > 0 ? "+" : ""}{deviation.toFixed(1)}% face à mediana de mercado — classificado como
+                  <span className="font-medium text-warning"> Atenção</span> na análise de risco.
+                </p>
+              </div>
+            )}
+
+            <div className="mt-4 space-y-3">
+              <label className="block">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Fornecedor</span>
+                <input
+                  value={supplier}
+                  onChange={(e) => setSupplier(e.target.value)}
+                  placeholder="ex.: SteelMais Lda, mercado informal…"
+                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Motivo</span>
+                <select
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                >
+                  {REASONS.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Observações</span>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={2}
+                  placeholder="Contexto, prazo de entrega, condições de pagamento…"
+                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent focus:outline-none resize-none"
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setNewPrice(null)}
+                className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-muted"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={() => void commit()}
+                className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              >
+                Guardar e registar no Audit Log
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 /** Tabela do BoQ detalhado: artigo por tipo/dimensão + materiais derivados. */
-function DetailedPhaseTable({ sec }: { sec: DetailedPhase }) {
+function DetailedPhaseTable({
+  sec,
+  priceOverrides,
+  onSave,
+}: {
+  sec: DetailedPhase;
+  priceOverrides: Record<string, PriceOverride>;
+  onSave: (key: string, label: string, un: string, original: number, price: number, meta: PriceMeta) => Promise<void>;
+}) {
   const [open, setOpen] = useState<string | null>(null);
   return (
     <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
@@ -572,14 +837,24 @@ function DetailedPhaseTable({ sec }: { sec: DetailedPhase }) {
                     <table className="w-full text-xs">
                       <tbody className="divide-y divide-border/60">
                         {l.materials.map((m) => (
-                          <tr key={m.item}>
+                          <tr key={m.item} className="group">
                             <td className="py-1.5">{m.desc}</td>
                             <td className="py-1.5 text-right text-muted-foreground">{m.un}</td>
                             <td className="py-1.5 text-right font-mono">
                               {m.qty.toLocaleString("pt-PT", { maximumFractionDigits: 2 })}
                             </td>
                             <td className="py-1.5 text-right font-mono">
-                              {m.priced ? m.preco.toLocaleString("pt-PT") : <span className="text-warning">sem preço</span>}
+                              <PriceCell
+                                label={`${l.code} · ${m.desc}`}
+                                un={m.un}
+                                preco={m.preco}
+                                priced={m.priced}
+                                edited={priceOverrides[boqDetailMatKey(l.code, m.item)]}
+                                onSave={(price, meta) => {
+                                  const key = boqDetailMatKey(l.code, m.item);
+                                  return onSave(key, `${l.code} · ${m.desc}`, m.un, priceOverrides[key]?.original ?? m.preco, price, meta);
+                                }}
+                              />
                             </td>
                             <td className="py-1.5 text-right font-mono font-medium">
                               {Math.round(m.qty * m.preco).toLocaleString("pt-PT")}

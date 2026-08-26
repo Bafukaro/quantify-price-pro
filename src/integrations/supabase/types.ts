@@ -101,6 +101,7 @@ export type Database = {
           owner_id: string
           phase: string
           phases: Json
+          price_overrides: Json
           quantities: Json | null
           spent_pct: number
           structure_type: string | null
@@ -124,6 +125,7 @@ export type Database = {
           owner_id?: string
           phase?: string
           phases?: Json
+          price_overrides?: Json
           quantities?: Json | null
           spent_pct?: number
           structure_type?: string | null
@@ -147,6 +149,7 @@ export type Database = {
           owner_id?: string
           phase?: string
           phases?: Json
+          price_overrides?: Json
           quantities?: Json | null
           spent_pct?: number
           structure_type?: string | null
@@ -158,8 +161,10 @@ export type Database = {
       schedule_tasks: {
         Row: {
           created_at: string
+          critical: boolean
           dur_weeks: number
           id: string
+          kind: string
           name: string
           owner_id: string
           phase: string
@@ -173,8 +178,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          critical?: boolean
           dur_weeks?: number
           id?: string
+          kind?: string
           name: string
           owner_id?: string
           phase?: string
@@ -188,8 +195,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          critical?: boolean
           dur_weeks?: number
           id?: string
+          kind?: string
           name?: string
           owner_id?: string
           phase?: string

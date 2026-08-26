@@ -12,6 +12,10 @@ export type ScheduleTask = {
   unit: string;
   plannedPct: number;
   status: "aberta" | "fechada";
+  /** "cura" = tarefa de cura de betão (REBAP Art. 68); "trabalho" = produção. */
+  kind: "trabalho" | "cura";
+  /** Folga zero — pertence ao caminho crítico. */
+  critical: boolean;
 };
 
 export type ReportStatus = "pendente" | "confirmado" | "rejeitado";
@@ -58,6 +62,8 @@ const mapTask = (r: any): ScheduleTask => ({
   unit: r.unit ?? "un",
   plannedPct: Number(r.planned_pct ?? 0),
   status: (r.status as ScheduleTask["status"]) ?? "aberta",
+  kind: (r.kind as ScheduleTask["kind"]) ?? "trabalho",
+  critical: Boolean(r.critical),
 });
 
 const mapReport = (r: any): DailyReport => ({
@@ -222,6 +228,41 @@ export function useScheduleLoaded(projectId: string) {
 
 const seeding = new Set<string>();
 const SEED_KEY = (id: string) => `sqi.schedule.seeded.${id}`;
+
+/** Insere o cronograma gerado dinamicamente (scheduleGen) — tarefas de trabalho + cura. */
+export async function insertGeneratedSchedule(
+  projectId: string,
+  rows: {
+    name: string;
+    phase: string;
+    startWeek: number;
+    durWeeks: number;
+    kind: "trabalho" | "cura";
+    critical: boolean;
+    targetQty: number;
+    unit: string;
+  }[]
+): Promise<string | null> {
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return "Sessão expirada.";
+  const payload = rows.map((t) => ({
+    owner_id: auth.user.id,
+    project_id: projectId,
+    name: t.name,
+    phase: t.phase,
+    start_week: Math.max(0, Math.round(t.startWeek)),
+    dur_weeks: Math.max(1, Math.round(t.durWeeks)),
+    target_qty: t.targetQty,
+    unit: t.unit || "un",
+    kind: t.kind,
+    critical: t.critical,
+  }));
+  const { data, error } = await supabase.from("schedule_tasks").insert(payload as any).select("*");
+  if (error) return error.message;
+  tasks = [...tasks, ...(data ?? []).map(mapTask)];
+  emit();
+  return null;
+}
 
 /** Insere o cronograma tipo (13 tarefas) na base de dados — uma única vez por projecto. */
 export async function seedScheduleTemplate(projectId: string): Promise<string | null> {
