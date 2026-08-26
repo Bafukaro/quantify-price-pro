@@ -5,6 +5,7 @@ import { fmtMT } from "@/data/mock";
 import type { BoQSection, BoQSource } from "@/lib/boqSource";
 import { boqGrandTotal } from "@/lib/boqSource";
 import type { DetailedPhase } from "@/lib/detailedBoq";
+import type { AuditEntry } from "@/data/store";
 
 /** Linhas do BoQ detalhado (por elemento extraído do IFC) para exportação. */
 function detailedRows(phases: DetailedPhase[]) {

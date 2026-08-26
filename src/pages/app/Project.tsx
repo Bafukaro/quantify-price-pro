@@ -15,8 +15,10 @@ import {
   Pencil,
   Check,
   X,
+  Store,
 } from "lucide-react";
-import { getStats, setPriceCity } from "@/data/priceDb";
+import { getStats, setPriceCity, materials, findMaterialFuzzy, RISK_LABEL, RISK_COLOR } from "@/data/priceDb";
+import type { PhaseKey } from "@/components/three/BuildingModel";
 import { useAudit, useProjects, useProjectMeshes, useProjectOverrides, useProjectRebar, useProjectElementGroups, setProjectPhasePct, pushAudit, auditStamp, currentAuditUser } from "@/data/store";
 import { setProjectPriceOverride, useProjectPriceOverrides, type PriceOverride } from "@/data/projects";
 import { exportBoQPDF, exportBoQExcel } from "@/lib/exports";
@@ -592,6 +594,7 @@ function PriceCell({
   preco,
   priced,
   edited,
+  materialId,
   onSave,
 }: {
   lineKey?: string;
@@ -600,6 +603,8 @@ function PriceCell({
   preco: number;
   priced: boolean;
   edited?: PriceOverride;
+  /** Ligação directa à Base de Preços; sem ela usa-se fuzzy match por nome. */
+  materialId?: string | null;
   onSave: (price: number, meta: PriceMeta) => Promise<void> | void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -608,6 +613,7 @@ function PriceCell({
   const [supplier, setSupplier] = useState("");
   const [reason, setReason] = useState<string>(REASONS[0]);
   const [note, setNote] = useState("");
+  const [showSup, setShowSup] = useState(false);
   const original = edited?.original ?? preco;
   const deviation = newPrice !== null && original > 0 ? ((newPrice - original) / original) * 100 : 0;
 
@@ -675,9 +681,34 @@ function PriceCell({
             >
               <Pencil className="size-3" />
             </button>
+            <button
+              onClick={() => setShowSup(true)}
+              aria-label={`Ver fornecedores de ${label}`}
+              title="Ver fornecedores na Base de Preços"
+              className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-accent transition"
+            >
+              <Store className="size-3" />
+            </button>
           </>
         )}
       </div>
+
+      {/* Drawer de comparação de fornecedores */}
+      {showSup && (
+        <SuppliersDrawer
+          label={label}
+          un={un}
+          materialId={materialId ?? null}
+          onPick={(price, supplierName) => {
+            setNewPrice(price);
+            setSupplier(supplierName);
+            setReason(REASONS[2]); // "Preço negociado com fornecedor"
+            setEditing(false);
+            setShowSup(false);
+          }}
+          onClose={() => setShowSup(false)}
+        />
+      )}
 
       {newPrice !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
