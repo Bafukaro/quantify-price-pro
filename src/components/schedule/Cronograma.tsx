@@ -448,6 +448,20 @@ function GanttRow({
           <span>
             {confirmed}/{t.targetQty || "—"} {t.unit}
           </span>
+          {t.targetQty <= 0 && (
+            <label className="inline-flex items-center gap-1" title="Progresso manual (editável)">
+              ·
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={t.plannedPct}
+                onChange={(e) => updateScheduleTask(t.id, { plannedPct: Number(e.target.value) })}
+                className="w-11 px-1 py-0.5 rounded border border-border bg-background text-[10px] font-mono text-foreground"
+              />
+              %
+            </label>
+          )}
           <span className={statusColor}>· {statusLabel}</span>
           <button onClick={onClose} className="ml-auto hover:text-accent" title="Fechar/reabrir tarefa">
             <Check className="size-3.5" />
@@ -472,10 +486,15 @@ function GanttRow({
         )}
         {/* Barra planeada */}
         <div
-          className={`absolute top-2 h-4 rounded-md overflow-hidden shadow-soft ${
-            critical ? "ring-2 ring-destructive ring-offset-1 ring-offset-surface-elevated" : ""
-          }`}
-          style={{ left: `${left}%`, width: `${width}%`, background: color, opacity: 0.55 }}
+          className="absolute top-2 h-4 rounded-md overflow-hidden shadow-soft"
+          style={{
+            left: `${left}%`,
+            width: `${width}%`,
+            background: color,
+            opacity: 0.55,
+            outline: critical ? "2px dashed hsl(var(--destructive))" : undefined,
+            outlineOffset: critical ? 2 : undefined,
+          }}
         >
           <div className="h-full bg-black/25" style={{ width: `${planned}%` }} />
           <span className="absolute inset-0 flex items-center px-1.5 text-[9px] font-mono text-white/90">
