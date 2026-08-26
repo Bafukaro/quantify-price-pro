@@ -205,7 +205,7 @@ export const SCHEDULE_TEMPLATE: TemplateTask[] = [
   { name: "Instalações hidráulicas", phase: "Instalações", startWeek: 22, durWeeks: 4, critical: false },
   { name: "Pavimentos e revestimentos", phase: "Acabamentos", startWeek: 25, durWeeks: 4, critical: false },
   { name: "Pinturas interiores e exteriores", phase: "Acabamentos", startWeek: 27, durWeeks: 4, critical: true },
-  { name: "Vistoria e entrega", phase: "Exteriores", startWeek: 31, durWeeks: 2, critical: true },
+  { name: "Vistoria e entrega", phase: "Exteriores", startWeek: 31, durWeeks: 3, critical: true },
 ];
 
 /** Caminho crítico declarado (folga zero): Escavação → Sapatas → Pilares R/C → Laje → Alvenaria → Cobertura → Pintura → Entrega. */
