@@ -162,6 +162,8 @@ function GanttView({
   const [seedBusy, setSeedBusy] = useState(false);
   const [genBusy, setGenBusy] = useState(false);
   const [genPreview, setGenPreview] = useState<GenResult | null>(null);
+  const [progressTask, setProgressTask] = useState<ScheduleTask | null>(null);
+  const { user } = useAuth();
 
   // Pré-preenchimento automático do cronograma tipo no projecto MALANGA
   // (uma única vez; tarefas ficam persistidas na base de dados).
@@ -241,7 +243,11 @@ function GanttView({
     return set;
   }, [rows, week]);
 
-  const avgReal = rows.length ? Math.round(rows.reduce((a, r) => a + r.real, 0) / rows.length) : 0;
+  // KPI "Progresso real": média ponderada pela duração planeada de cada tarefa.
+  const totalDur = rows.reduce((a, r) => a + r.t.durWeeks, 0);
+  const avgReal = totalDur
+    ? Math.round(rows.reduce((a, r) => a + r.real * r.t.durWeeks, 0) / totalDur)
+    : 0;
   const avgPlanned = rows.length ? Math.round(rows.reduce((a, r) => a + r.planned, 0) / rows.length) : 0;
 
   const saveStart = (v: string) => {
@@ -435,7 +441,7 @@ function GanttView({
           </span>
         ))}
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-4 rounded-sm bg-accent" /> Real reportado
+          <span className="h-2 w-4 rounded-sm bg-success" /> Real reportado
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span
@@ -506,6 +512,7 @@ function GanttView({
                     color={phaseColor(phaseList, t.phase)}
                     critical={criticalIds.has(t.id)}
                     confirmed={confirmedQty(reports, t.id)}
+                    onRegister={() => setProgressTask(t)}
                     onClose={() =>
                       updateScheduleTask(t.id, { status: t.status === "fechada" ? "aberta" : "fechada" })
                     }
@@ -516,6 +523,17 @@ function GanttView({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Drawer de registo de progresso (não ocupa a página inteira) */}
+      {progressTask && (
+        <ProgressDrawer
+          project={project}
+          task={progressTask}
+          reports={reports}
+          userEmail={user?.email ?? "—"}
+          onClose={() => setProgressTask(null)}
+        />
       )}
 
       <div className="grid sm:grid-cols-4 gap-4">
@@ -538,6 +556,7 @@ function GanttRow({
   color,
   critical,
   confirmed,
+  onRegister,
   onClose,
   onDelete,
 }: {
@@ -550,6 +569,7 @@ function GanttRow({
   color: string;
   critical: boolean;
   confirmed: number;
+  onRegister: () => void;
   onClose: () => void;
   onDelete: () => void;
 }) {
@@ -593,8 +613,20 @@ function GanttRow({
               %
             </label>
           )}
-          <span className={statusColor}>· {statusLabel}</span>
-          <button onClick={onClose} className="ml-auto hover:text-accent" title="Fechar/reabrir tarefa">
+          <span className={`inline-flex items-center gap-1 ${statusColor}`}>
+            · {statusLabel === "atrasada" && <AlertTriangle className="size-3" aria-label="Em atraso" />}
+            {statusLabel}
+          </span>
+          {t.kind !== "cura" && (
+            <button
+              onClick={onRegister}
+              className="ml-auto inline-flex items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-accent hover:bg-accent/10"
+              title="Registar progresso de hoje"
+            >
+              <Plus className="size-3" /> Registar
+            </button>
+          )}
+          <button onClick={onClose} className={`${t.kind === "cura" ? "ml-auto " : ""}hover:text-accent`} title="Fechar/reabrir tarefa">
             <Check className="size-3.5" />
           </button>
           <button onClick={onDelete} className="hover:text-destructive" title="Remover tarefa">
@@ -648,7 +680,7 @@ function GanttRow({
           className="absolute top-8 h-4 rounded-md bg-muted border border-border overflow-hidden"
           style={{ left: `${left}%`, width: `${width}%` }}
         >
-          <div className="h-full bg-accent transition-all duration-300" style={{ width: `${real}%` }} />
+          <div className="h-full bg-success transition-all duration-300" style={{ width: `${real}%` }} />
           <span className="absolute inset-0 flex items-center px-1.5 text-[9px] font-mono text-foreground/80">
             real {real}%
           </span>
