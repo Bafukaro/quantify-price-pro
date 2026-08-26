@@ -28,6 +28,7 @@ import {
   seedScheduleTemplate,
   updateScheduleTask,
   useSchedule,
+  useScheduleLoaded,
   type DailyReport,
   type ScheduleTask,
 } from "@/data/schedule";
@@ -151,12 +152,13 @@ function GanttView({
 
   // Pré-preenchimento automático do cronograma tipo no projecto MALANGA
   // (uma única vez; tarefas ficam persistidas na base de dados).
+  const scheduleLoaded = useScheduleLoaded(project.id);
   useEffect(() => {
     if (!/malanga/i.test(project.name)) return;
-    if (!isScheduleLoaded(project.id) || tasks.length > 0) return;
+    if (!scheduleLoaded || tasks.length > 0) return;
     setSeedBusy(true);
     void seedScheduleTemplate(project.id).finally(() => setSeedBusy(false));
-  }, [project.id, project.name, tasks.length]);
+  }, [project.id, project.name, scheduleLoaded, tasks.length]);
 
   const phaseList = useMemo(() => buildPhaseList(phaseNames, tasks), [phaseNames, tasks]);
 
