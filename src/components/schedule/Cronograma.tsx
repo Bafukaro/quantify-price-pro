@@ -308,7 +308,7 @@ function GanttView({
 
       {/* Legend */}
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-        {(phaseNames.length ? phaseNames : []).map((p, i) => (
+        {phaseList.map((p, i) => (
           <span key={p} className="inline-flex items-center gap-1.5">
             <span className="size-3 rounded-sm" style={{ background: phaseColors[`F${i % 6}`] }} /> {p}
           </span>
@@ -317,14 +317,29 @@ function GanttView({
           <span className="h-2 w-4 rounded-sm bg-accent" /> Real reportado
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="size-3 rounded-sm border-2 border-destructive" /> Caminho crítico (atraso ≥ 10 p.p.)
+          <span className="size-3 rounded-sm border-2 border-dashed border-destructive" /> Caminho crítico (folga zero)
         </span>
       </div>
 
       {/* Gantt */}
       {rows.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          Sem tarefas no cronograma. Crie a primeira tarefa com quantidade-alvo (ex: 100 caixas).
+        <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground space-y-3">
+          <div>
+            {seedBusy
+              ? "A pré-preencher o cronograma tipo…"
+              : "Sem tarefas no cronograma. Crie a primeira tarefa com quantidade-alvo (ex: 100 caixas)."}
+          </div>
+          {!seedBusy && (
+            <button
+              onClick={() => {
+                setSeedBusy(true);
+                void seedScheduleTemplate(project.id).finally(() => setSeedBusy(false));
+              }}
+              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90"
+            >
+              <Plus className="size-4" /> Pré-preencher cronograma tipo (13 tarefas)
+            </button>
+          )}
         </div>
       ) : (
         <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
@@ -357,7 +372,7 @@ function GanttView({
                     delta={delta}
                     totalWeeks={totalWeeks}
                     week={week}
-                    color={phaseColor(phaseNames, t.phase)}
+                    color={phaseColor(phaseList, t.phase)}
                     critical={criticalIds.has(t.id)}
                     confirmed={confirmedQty(reports, t.id)}
                     onClose={() =>
