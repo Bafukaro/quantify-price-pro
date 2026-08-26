@@ -221,6 +221,15 @@ export const phase3DInfo: Record<Phase3D, {
       { item: "C.3", desc: "Caleiras e tubos de queda", un: "m", qty: 48, preco: 380 },
     ],
   },
+  instalacoes: {
+    label: "Instalações",
+    desc: "Redes eléctricas, hidráulicas e equipamentos MEP",
+    items: [
+      { item: "I.1", desc: "Cabo XV 3×2,5 mm² — circuitos de tomadas e iluminação", un: "m", qty: 850, preco: 165 },
+      { item: "I.2", desc: "Tubo PVC PN10 Ø50 — rede de esgotos", un: "m", qty: 120, preco: 190 },
+      { item: "I.3", desc: "Aparelhagem, quadros e equipamentos MEP", un: "un", qty: 24, preco: 2400 },
+    ],
+  },
   acabamentos: {
     label: "Acabamentos",
     desc: "Janelas, portas, pinturas e pavimentos",

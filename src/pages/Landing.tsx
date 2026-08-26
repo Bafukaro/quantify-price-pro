@@ -44,13 +44,14 @@ import {
   PieChart,
 } from "lucide-react";
 
-const ALL_PHASES: PhaseKey[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "acabamentos"];
+const ALL_PHASES: PhaseKey[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "instalacoes", "acabamentos"];
 const PHASE_LABELS: Record<PhaseKey, string> = {
   fundacao: "Fundação",
   pilares: "Pilares",
   lajes: "Lajes",
   alvenaria: "Alvenaria",
   cobertura: "Cobertura",
+  instalacoes: "Instalações",
   acabamentos: "Acabamentos",
 };
 
