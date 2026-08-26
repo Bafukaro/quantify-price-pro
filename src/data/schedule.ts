@@ -214,6 +214,12 @@ export const isTemplateCritical = (name: string) =>
 
 export const isScheduleLoaded = (projectId: string) => loadedProjects.has(projectId);
 
+/** Versão reactiva: re-renderiza quando loadSchedule terminar para o projecto. */
+export function useScheduleLoaded(projectId: string) {
+  useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  return loadedProjects.has(projectId);
+}
+
 const seeding = new Set<string>();
 const SEED_KEY = (id: string) => `sqi.schedule.seeded.${id}`;
 

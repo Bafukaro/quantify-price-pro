@@ -21,7 +21,6 @@ import {
   currentWeek,
   deleteDailyReport,
   deleteScheduleTask,
-  isScheduleLoaded,
   isTemplateCritical,
   pendingQty,
   realPct,
