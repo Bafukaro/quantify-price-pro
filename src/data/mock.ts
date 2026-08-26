@@ -168,7 +168,7 @@ export const fmtMT = (n: number) =>
   new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 0 }).format(n) + " MT";
 
 // 3D Phase mapping → BoQ groups for cost breakdown per element
-export type Phase3D = "fundacao" | "pilares" | "lajes" | "alvenaria" | "cobertura" | "acabamentos";
+export type Phase3D = "fundacao" | "pilares" | "lajes" | "alvenaria" | "cobertura" | "instalacoes" | "acabamentos";
 
 export const phase3DInfo: Record<Phase3D, {
   label: string;
