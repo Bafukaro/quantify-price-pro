@@ -593,9 +593,8 @@ function SuppliersDrawer({
   onPick: (price: number, supplierName: string) => void;
   onClose: () => void;
 }) {
-  const material =
-    (materialId ? materials.find((m) => m.id === materialId) ?? null : null) ??
-    findMaterialFuzzy(label);
+  const byId = materialId ? materials.find((m) => m.id === materialId) : undefined;
+  const material = byId ?? findMaterialFuzzy(label);
   const stats = material ? getStats(material.id) : null;
 
   return (
