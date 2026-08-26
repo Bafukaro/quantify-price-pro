@@ -1092,8 +1092,212 @@ function CronogramaView({ project }: { project: ProjectRecord }) {
 
 
 // ===================== AUDIT LOG =====================
-function AuditLogView() {
+
+/** Classificação por tipo para filtros e cores. */
+function auditTypeOf(e: { item: string }): "precos" | "progresso" | "projectos" {
+  if (e.item.startsWith("Preço")) return "precos";
+  if (e.item.startsWith("Progresso")) return "progresso";
+  return "projectos";
+}
+
+const AUDIT_DOT: Record<string, string> = {
+  precos: "bg-accent",
+  progresso: "bg-success",
+  projectos: "bg-muted-foreground",
+};
+
+/** Hash SHA-256 real (crypto.subtle) de um conjunto de entradas. */
+async function sha256Hex(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function AuditLogView({ projectName }: { projectName: string }) {
   const entries = useAudit();
+  const [typeF, setTypeF] = useState("todos");
+  const [userF, setUserF] = useState("todos");
+  const [fromF, setFromF] = useState("");
+  const [toF, setToF] = useState("");
+  const [hash, setHash] = useState<string | null>(null);
+
+  const users = useMemo(() => [...new Set(entries.map((e) => e.user))], [entries]);
+
+  const filtered = useMemo(
+    () =>
+      entries.filter((e) => {
+        if (typeF !== "todos" && auditTypeOf(e) !== typeF) return false;
+        if (userF !== "todos" && e.user !== userF) return false;
+        const d = e.dt.slice(0, 10);
+        if (fromF && d < fromF) return false;
+        if (toF && d > toF) return false;
+        return true;
+      }),
+    [entries, typeF, userF, fromF, toF]
+  );
+
+  // Recalcula o hash de integridade sobre as entradas visíveis.
+  useEffect(() => {
+    let alive = true;
+    void sha256Hex(JSON.stringify(filtered)).then((h) => {
+      if (alive) setHash(h);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [filtered]);
+
+  const hasFilters = typeF !== "todos" || userF !== "todos" || fromF || toF;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-3 max-w-2xl">
+          <ScrollText className="size-5 text-accent mt-0.5" />
+          <div className="text-sm text-muted-foreground">
+            Histórico imutável de todas as acções na sua conta. Qualquer alteração &gt;10% exige
+            justificativa. Exportável em PDF com hash de integridade.
+          </div>
+        </div>
+        <button
+          onClick={() =>
+            exportAuditPDF({
+              projectName,
+              user: currentAuditUser(),
+              entries: filtered,
+              typeOf: auditTypeOf,
+              hash: hash ?? "a calcular…",
+            })
+          }
+          disabled={filtered.length === 0}
+          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 disabled:opacity-40"
+        >
+          <FileSignature className="size-4" /> Exportar PDF assinado
+        </button>
+      </div>
+
+      {/* Filtros */}
+      <div className="rounded-xl bg-surface-elevated border border-border shadow-soft p-4 flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Tipo
+          <select
+            value={typeF}
+            onChange={(e) => setTypeF(e.target.value)}
+            className="bg-background border border-border rounded-md px-2.5 py-1.5 text-sm text-foreground"
+          >
+            <option value="todos">Todos</option>
+            <option value="precos">Preços</option>
+            <option value="progresso">Progresso</option>
+            <option value="projectos">Projectos</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Utilizador
+          <select
+            value={userF}
+            onChange={(e) => setUserF(e.target.value)}
+            className="bg-background border border-border rounded-md px-2.5 py-1.5 text-sm text-foreground"
+          >
+            <option value="todos">Todos</option>
+            {users.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          De
+          <input
+            type="date"
+            value={fromF}
+            onChange={(e) => setFromF(e.target.value)}
+            className="bg-background border border-border rounded-md px-2.5 py-1.5 text-sm text-foreground"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Até
+          <input
+            type="date"
+            value={toF}
+            onChange={(e) => setToF(e.target.value)}
+            className="bg-background border border-border rounded-md px-2.5 py-1.5 text-sm text-foreground"
+          />
+        </label>
+        {hasFilters && (
+          <button
+            onClick={() => {
+              setTypeF("todos");
+              setUserF("todos");
+              setFromF("");
+              setToF("");
+            }}
+            className="text-xs text-accent hover:underline pb-2"
+          >
+            Limpar filtros
+          </button>
+        )}
+      </div>
+
+      <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="p-10 text-center text-sm text-muted-foreground">
+            {entries.length === 0
+              ? "Sem dados — ainda não há acções registadas nesta conta."
+              : "Sem entradas com os filtros actuais."}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/60 text-muted-foreground text-xs uppercase tracking-wider">
+                <tr>
+                  <th className="px-4 py-3 text-left">Data / Hora</th>
+                  <th className="px-4 py-3 text-left">Utilizador</th>
+                  <th className="px-4 py-3 text-left">Item</th>
+                  <th className="px-4 py-3 text-left">Anterior</th>
+                  <th className="px-4 py-3 text-left">Novo</th>
+                  <th className="px-4 py-3">Δ%</th>
+                  <th className="px-4 py-3 text-left">Justificativa</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filtered.map((e, i) => (
+                  <tr key={i} className="hover:bg-muted/30">
+                    <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{e.dt}</td>
+                    <td className="px-4 py-3">{e.user}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className={`size-1.5 rounded-full ${AUDIT_DOT[auditTypeOf(e)]}`} />
+                        {e.item}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{e.from}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{e.to}</td>
+                    <td className={`px-4 py-3 text-center font-mono ${e.delta > 10 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                      {e.delta > 0 ? `+${e.delta}%` : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground max-w-sm">{e.just}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="bg-muted/30 border-t border-border px-4 py-3 flex items-center justify-between text-xs text-muted-foreground flex-wrap gap-2">
+          <span>
+            {filtered.length} entradas
+            {hasFilters ? ` (de ${entries.length})` : ""} · só leitura
+          </span>
+          <span className="inline-flex items-center gap-1.5" title={hash ?? ""}>
+            <Lock className="size-3" /> Hash SHA-256:{" "}
+            <code className="font-mono">{hash ? `${hash.slice(0, 4)}…${hash.slice(-4)}` : "…"}</code>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function _unusedRemoved() {
   return (
     <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
       <div className="px-5 py-3 border-b border-border flex items-center gap-2">
