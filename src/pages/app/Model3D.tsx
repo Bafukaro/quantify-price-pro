@@ -47,9 +47,13 @@ const STAGE_PCT: Record<string, number> = {
 
 const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "instalacoes", "acabamentos"];
 
-type Model3DProps = { projectId?: string };
+type Model3DProps = {
+  projectId?: string;
+  /** Clique num elemento 3D → navegar para a secção do Orçamento dessa fase. */
+  onBoQNavigate?: (phase: PhaseKey) => void;
+};
 
-export default function Model3D({ projectId: projectIdProp }: Model3DProps = {}) {
+export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Model3DProps = {}) {
   const [params] = useSearchParams();
   const projects = useProjects();
   const projectId =
@@ -330,7 +334,10 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
                       setErrorDetail({ detail, stage });
                       setLoadState("error");
                     }}
-                    onSelect={(p) => focusPhase(p)}
+                    onSelect={(p) => {
+                      focusPhase(p);
+                      onBoQNavigate?.(p);
+                    }}
                   />
                 ) : (
                   <BuildingModel

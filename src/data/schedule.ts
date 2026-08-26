@@ -334,6 +334,56 @@ export async function addDailyReport(input: {
   return null;
 }
 
+/**
+ * Registo de progresso directo a partir do Gantt ("+ Registar progresso").
+ * Diferença para addDailyReport: o registo é feito pelo engenheiro/gestor e
+ * entra já confirmado — conta imediatamente para o progresso real da tarefa.
+ * Foto (opcional, máx. 1) em reports/{user}/{project}/progress/{task}/…
+ */
+export async function addProgressEntry(input: {
+  projectId: string;
+  taskId: string;
+  date: string;
+  qty: number;
+  note: string;
+  reporter: string;
+  file: File | null;
+}): Promise<{ error: string | null; total: number }> {
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { error: "Sessão expirada.", total: 0 };
+  const paths: string[] = [];
+  if (input.file) {
+    const path = `${auth.user.id}/${input.projectId}/progress/${input.taskId}/${Date.now()}-${input.file.name.replace(/[^\w.\-]/g, "_")}`;
+    const { error } = await supabase.storage.from("reports").upload(path, input.file, { upsert: true });
+    if (error) return { error: `Falha ao carregar foto: ${error.message}`, total: 0 };
+    paths.push(path);
+  }
+  const reviewedAt = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("daily_reports")
+    .insert({
+      owner_id: auth.user.id,
+      project_id: input.projectId,
+      task_id: input.taskId,
+      report_date: input.date,
+      qty: input.qty,
+      approved_qty: input.qty,
+      note: input.note,
+      reporter: input.reporter,
+      photos: paths,
+      status: "confirmado",
+      reviewed_by: input.reporter,
+      reviewed_at: reviewedAt,
+    } as any)
+    .select("*")
+    .single();
+  if (error || !data) return { error: error?.message ?? "Falha ao guardar registo.", total: 0 };
+  reports = [mapReport(data), ...reports];
+  emit();
+  void signPhotos(paths);
+  return { error: null, total: confirmedQty(reports, input.taskId) };
+}
+
 export async function reviewDailyReport(
   id: string,
   status: Exclude<ReportStatus, "pendente">,

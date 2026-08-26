@@ -10,16 +10,20 @@ import {
   Calculator,
   FileText,
   ScrollText,
+  FileSignature,
+  Lock,
   Layers,
   TrendingDown,
   Pencil,
   Check,
   X,
+  Store,
 } from "lucide-react";
-import { getStats, setPriceCity } from "@/data/priceDb";
+import { getStats, setPriceCity, materials, findMaterialFuzzy, RISK_LABEL, RISK_COLOR } from "@/data/priceDb";
+import type { PhaseKey } from "@/components/three/BuildingModel";
 import { useAudit, useProjects, useProjectMeshes, useProjectOverrides, useProjectRebar, useProjectElementGroups, setProjectPhasePct, pushAudit, auditStamp, currentAuditUser } from "@/data/store";
 import { setProjectPriceOverride, useProjectPriceOverrides, type PriceOverride } from "@/data/projects";
-import { exportBoQPDF, exportBoQExcel } from "@/lib/exports";
+import { exportBoQPDF, exportBoQExcel, exportAuditPDF } from "@/lib/exports";
 import { buildBoQSource, boqGrandTotal, boqLineKey, boqDetailMatKey, type BoQSource } from "@/lib/boqSource";
 import { buildDetailedBoQ, type DetailedPhase } from "@/lib/detailedBoq";
 import type { Project as ProjectRecord } from "@/data/projects";
@@ -49,6 +53,8 @@ export default function Project() {
   // Preços resolvidos pela localização do projecto (Maputo vs Lichinga, etc.)
   setPriceCity(project?.location);
   const [active, setActive] = useState<TabKey>("resumo");
+  // Clique num elemento 3D → destacar a secção correspondente no Orçamento.
+  const [boqHighlight, setBoqHighlight] = useState<{ phase: PhaseKey; ts: number } | null>(null);
   useEffect(() => {
     const t = params.get("tab") as TabKey | null;
     if (t && TABS.some((x) => x.key === t)) setActive(t);
@@ -62,6 +68,12 @@ export default function Project() {
     [project?.location, meshes, overrides, rebar, priceOverrides]
   );
   const editedPrices = Object.keys(priceOverrides).length;
+  // Badge do Audit Log: entradas das últimas 24h.
+  const auditEntries = useAudit();
+  const audit24h = useMemo(() => {
+    const cutoff = Date.now() - 24 * 3600 * 1000;
+    return auditEntries.filter((e) => new Date(e.dt.replace(" ", "T")).getTime() >= cutoff).length;
+  }, [auditEntries]);
 
   if (!project) {
     return (
@@ -106,17 +118,31 @@ export default function Project() {
             label={t.label}
             active={active === t.key}
             onClick={() => setActive(t.key)}
-            badge={t.key === "orcamento" && editedPrices > 0 ? `${editedPrices} preços editados` : undefined}
+            badge={
+              t.key === "orcamento" && editedPrices > 0
+                ? `${editedPrices} preços editados`
+                : t.key === "auditlog" && audit24h > 0
+                ? `${audit24h} / 24h`
+                : undefined
+            }
           />
         ))}
       </div>
 
       {active === "resumo" && <ResumoView project={project} boq={boq} total={total} />}
-      {active === "vista3d" && <Model3D projectId={project.id} />}
+      {active === "vista3d" && (
+        <Model3D
+          projectId={project.id}
+          onBoQNavigate={(phase) => {
+            setBoqHighlight({ phase, ts: Date.now() });
+            setActive("orcamento");
+          }}
+        />
+      )}
       {active === "calculos" && <CalculosView />}
-      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} />}
+      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} highlight={boqHighlight} />}
       {active === "cronograma" && <CronogramaView project={project} />}
-      {active === "auditlog" && <AuditLogView />}
+      {active === "auditlog" && <AuditLogView projectName={project.name} />}
       {active === "relatorio" && <RelatorioView project={project} boq={boq} total={total} ivaPct={ivaPct} contPct={contPct} />}
     </div>
   );
@@ -378,6 +404,7 @@ function OrcamentoView({
   projectId,
   boq,
   priceOverrides,
+  highlight,
 }: {
   ivaPct: number;
   contPct: number;
@@ -385,6 +412,8 @@ function OrcamentoView({
   projectId: string;
   boq: BoQSource;
   priceOverrides: Record<string, PriceOverride>;
+  /** Fase a destacar após clique num elemento 3D (scroll + highlight 3s). */
+  highlight?: { phase: PhaseKey; ts: number } | null;
 }) {
   const subtotalGeral = boqGrandTotal(boq);
   const contingencia = subtotalGeral * contPct;
@@ -396,6 +425,27 @@ function OrcamentoView({
   // Banner de transparência do aço — dispensável por fase, só nesta sessão.
   const [steelDismissed, setSteelDismissed] = useState<Set<string>>(new Set());
   const dismissSteel = (k: string) => setSteelDismissed((s) => new Set(s).add(k));
+
+  // Clique 3D → BoQ: força o modo "fases", scrolla para a secção e
+  // realça-a durante 3 segundos.
+  const [hl, setHl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!highlight) return;
+    if (!boq.order.includes(highlight.phase)) return;
+    setMode("fases");
+    setHl(highlight.phase);
+    const t1 = setTimeout(() => {
+      document
+        .getElementById(`boq-sec-${highlight.phase}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    const t2 = setTimeout(() => setHl(null), 3000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlight?.ts]);
 
   /** Guarda o preço editado no projecto e regista no Audit Log (imutável). */
   const savePrice = async (
@@ -476,7 +526,13 @@ function OrcamentoView({
 
         const sec = boq.sections[key];
         return (
-          <div key={key} className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
+          <div
+            key={key}
+            id={`boq-sec-${key}`}
+            className={`rounded-xl bg-surface-elevated border shadow-soft overflow-hidden transition-all duration-500 ${
+              hl === key ? "border-warning ring-2 ring-warning/60 bg-warning/5" : "border-border"
+            }`}
+          >
             <div className="px-5 py-3 border-b border-border bg-muted/30 flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <div className="font-display text-base">{sec.label}</div>
@@ -532,6 +588,7 @@ function OrcamentoView({
                         preco={l.preco}
                         priced={l.priced}
                         edited={l.edited}
+                        materialId={l.materialId}
                         onSave={(price, meta) =>
                           savePrice(boqLineKey(key, l.item), `${l.item} — ${l.desc}`, l.un, l.edited?.original ?? l.preco, price, meta)
                         }
@@ -572,6 +629,128 @@ function OrcamentoView({
   );
 }
 
+/**
+ * Drawer "Ver fornecedores": lista as cotações da Base de Preços para o
+ * material da linha (por materialId ou fuzzy match por nome), com desvio da
+ * mediana e botão para adoptar o preço — abre depois o modal de justificação
+ * já com o fornecedor pré-preenchido.
+ */
+function SuppliersDrawer({
+  label,
+  un,
+  materialId,
+  onPick,
+  onClose,
+}: {
+  label: string;
+  un: string;
+  materialId: string | null;
+  onPick: (price: number, supplierName: string) => void;
+  onClose: () => void;
+}) {
+  const byId = materialId ? materials.find((m) => m.id === materialId) : undefined;
+  const material = byId ?? findMaterialFuzzy(label);
+  const stats = material ? getStats(material.id) : null;
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <aside className="absolute right-0 top-0 h-full w-full max-w-lg bg-surface-elevated border-l border-border shadow-elegant flex flex-col animate-fade-in">
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
+          <div>
+            <div className="font-display text-lg flex items-center gap-2">
+              <Store className="size-4 text-accent" /> Fornecedores
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+            {material && (
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                Material na base: <span className="text-foreground">{material.name}</span>
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {!stats || stats.byQuote.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+              Material não encontrado na base de preços. Insira o preço manualmente.
+            </div>
+          ) : (
+            <>
+              <div className="rounded-lg bg-muted/40 border border-border px-3 py-2 text-xs text-muted-foreground mb-3">
+                Mediana de referência:{" "}
+                <span className="font-mono font-medium text-foreground">
+                  {Math.round(stats.median).toLocaleString("pt-PT")} MT/{un}
+                </span>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="text-muted-foreground text-[11px] uppercase tracking-wider">
+                  <tr>
+                    <th className="pb-2 text-left">Fornecedor</th>
+                    <th className="pb-2 text-right">Preço (MT)</th>
+                    <th className="pb-2 text-right">Desvio</th>
+                    <th className="pb-2 text-left pl-3">Status</th>
+                    <th className="pb-2" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {/* Linha da mediana destacada como referência */}
+                  <tr className="font-medium bg-muted/30">
+                    <td className="py-2 pr-2 text-muted-foreground italic">Mediana de mercado</td>
+                    <td className="py-2 text-right font-mono">{Math.round(stats.median).toLocaleString("pt-PT")}</td>
+                    <td className="py-2 text-right font-mono text-muted-foreground">0%</td>
+                    <td className="py-2 pl-3 text-[11px] text-muted-foreground">referência</td>
+                    <td />
+                  </tr>
+                  {[...stats.byQuote]
+                    .sort((a, b) => a.quote.price - b.quote.price)
+                    .map(({ quote, supplier, deviationPct, risk }) => (
+                      <tr key={supplier.id} className="hover:bg-muted/20">
+                        <td className="py-2 pr-2">
+                          <div className="leading-tight">
+                            <div>{supplier.name}</div>
+                            <div className="text-[10px] text-muted-foreground">{supplier.location}</div>
+                          </div>
+                        </td>
+                        <td className="py-2 text-right font-mono">
+                          {quote.price.toLocaleString("pt-PT")}
+                        </td>
+                        <td
+                          className={`py-2 text-right font-mono text-xs ${
+                            deviationPct > 0 ? "text-warning" : "text-success"
+                          }`}
+                        >
+                          {deviationPct > 0 ? "+" : ""}
+                          {deviationPct.toFixed(1)}%
+                        </td>
+                        <td className="py-2 pl-3">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${RISK_COLOR[risk]}`}>
+                            {RISK_LABEL[risk]}
+                          </span>
+                        </td>
+                        <td className="py-2 text-right">
+                          <button
+                            onClick={() => onPick(quote.price, supplier.name)}
+                            className="text-[11px] font-medium text-accent border border-accent/50 rounded px-2 py-1 hover:bg-accent/10 whitespace-nowrap"
+                          >
+                            Usar este preço
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 const REASONS = [
   "Fornecedor específico exigido",
   "Actualização de cotação de mercado",
@@ -592,6 +771,7 @@ function PriceCell({
   preco,
   priced,
   edited,
+  materialId,
   onSave,
 }: {
   lineKey?: string;
@@ -600,6 +780,8 @@ function PriceCell({
   preco: number;
   priced: boolean;
   edited?: PriceOverride;
+  /** Ligação directa à Base de Preços; sem ela usa-se fuzzy match por nome. */
+  materialId?: string | null;
   onSave: (price: number, meta: PriceMeta) => Promise<void> | void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -608,6 +790,7 @@ function PriceCell({
   const [supplier, setSupplier] = useState("");
   const [reason, setReason] = useState<string>(REASONS[0]);
   const [note, setNote] = useState("");
+  const [showSup, setShowSup] = useState(false);
   const original = edited?.original ?? preco;
   const deviation = newPrice !== null && original > 0 ? ((newPrice - original) / original) * 100 : 0;
 
@@ -675,9 +858,34 @@ function PriceCell({
             >
               <Pencil className="size-3" />
             </button>
+            <button
+              onClick={() => setShowSup(true)}
+              aria-label={`Ver fornecedores de ${label}`}
+              title="Ver fornecedores na Base de Preços"
+              className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-accent transition"
+            >
+              <Store className="size-3" />
+            </button>
           </>
         )}
       </div>
+
+      {/* Drawer de comparação de fornecedores */}
+      {showSup && (
+        <SuppliersDrawer
+          label={label}
+          un={un}
+          materialId={materialId ?? null}
+          onPick={(price, supplierName) => {
+            setNewPrice(price);
+            setSupplier(supplierName);
+            setReason(REASONS[2]); // "Preço negociado com fornecedor"
+            setEditing(false);
+            setShowSup(false);
+          }}
+          onClose={() => setShowSup(false)}
+        />
+      )}
 
       {newPrice !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -886,53 +1094,211 @@ function CronogramaView({ project }: { project: ProjectRecord }) {
 
 
 // ===================== AUDIT LOG =====================
-function AuditLogView() {
+
+/** Classificação por tipo para filtros e cores. */
+function auditTypeOf(e: { item: string }): "precos" | "progresso" | "projectos" {
+  if (e.item.startsWith("Preço")) return "precos";
+  if (e.item.startsWith("Progresso")) return "progresso";
+  return "projectos";
+}
+
+const AUDIT_DOT: Record<string, string> = {
+  precos: "bg-accent",
+  progresso: "bg-success",
+  projectos: "bg-muted-foreground",
+};
+
+/** Hash SHA-256 real (crypto.subtle) de um conjunto de entradas. */
+async function sha256Hex(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function AuditLogView({ projectName }: { projectName: string }) {
   const entries = useAudit();
+  const [typeF, setTypeF] = useState("todos");
+  const [userF, setUserF] = useState("todos");
+  const [fromF, setFromF] = useState("");
+  const [toF, setToF] = useState("");
+  const [hash, setHash] = useState<string | null>(null);
+
+  const users = useMemo(() => [...new Set(entries.map((e) => e.user))], [entries]);
+
+  const filtered = useMemo(
+    () =>
+      entries.filter((e) => {
+        if (typeF !== "todos" && auditTypeOf(e) !== typeF) return false;
+        if (userF !== "todos" && e.user !== userF) return false;
+        const d = e.dt.slice(0, 10);
+        if (fromF && d < fromF) return false;
+        if (toF && d > toF) return false;
+        return true;
+      }),
+    [entries, typeF, userF, fromF, toF]
+  );
+
+  // Recalcula o hash de integridade sobre as entradas visíveis.
+  useEffect(() => {
+    let alive = true;
+    void sha256Hex(JSON.stringify(filtered)).then((h) => {
+      if (alive) setHash(h);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [filtered]);
+
+  const hasFilters = typeF !== "todos" || userF !== "todos" || fromF || toF;
+
   return (
-    <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
-      <div className="px-5 py-3 border-b border-border flex items-center gap-2">
-        <ScrollText className="size-4 text-accent" />
-        <span className="text-sm">Acções registadas na sua conta · {entries.length} entradas</span>
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-3 max-w-2xl">
+          <ScrollText className="size-5 text-accent mt-0.5" />
+          <div className="text-sm text-muted-foreground">
+            Histórico imutável de todas as acções na sua conta. Qualquer alteração &gt;10% exige
+            justificativa. Exportável em PDF com hash de integridade.
+          </div>
+        </div>
+        <button
+          onClick={() =>
+            exportAuditPDF({
+              projectName,
+              user: currentAuditUser(),
+              entries: filtered,
+              typeOf: auditTypeOf,
+              hash: hash ?? "a calcular…",
+            })
+          }
+          disabled={filtered.length === 0}
+          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 disabled:opacity-40"
+        >
+          <FileSignature className="size-4" /> Exportar PDF assinado
+        </button>
       </div>
-      {entries.length === 0 ? (
-        <div className="p-10 text-center text-sm text-muted-foreground">
-          Sem dados — ainda não há acções registadas nesta conta.
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/60 text-muted-foreground text-xs uppercase tracking-wider">
-              <tr>
-                <th className="px-4 py-3 text-left">Data / Hora</th>
-                <th className="px-4 py-3 text-left">Utilizador</th>
-                <th className="px-4 py-3 text-left">Item</th>
-                <th className="px-4 py-3 text-left">Anterior</th>
-                <th className="px-4 py-3 text-left">Novo</th>
-                <th className="px-4 py-3">Δ%</th>
-                <th className="px-4 py-3 text-left">Justificativa</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {entries.map((e, i) => (
-                <tr key={i} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{e.dt}</td>
-                  <td className="px-4 py-3">{e.user}</td>
-                  <td className="px-4 py-3 font-medium">{e.item}</td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{e.from}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{e.to}</td>
-                  <td className={`px-4 py-3 text-center font-mono ${e.delta > 10 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                    {e.delta > 0 ? `+${e.delta}%` : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground max-w-sm">{e.just}</td>
+
+      {/* Filtros */}
+      <div className="rounded-xl bg-surface-elevated border border-border shadow-soft p-4 flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Tipo
+          <select
+            value={typeF}
+            onChange={(e) => setTypeF(e.target.value)}
+            className="bg-background border border-border rounded-md px-2.5 py-1.5 text-sm text-foreground"
+          >
+            <option value="todos">Todos</option>
+            <option value="precos">Preços</option>
+            <option value="progresso">Progresso</option>
+            <option value="projectos">Projectos</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Utilizador
+          <select
+            value={userF}
+            onChange={(e) => setUserF(e.target.value)}
+            className="bg-background border border-border rounded-md px-2.5 py-1.5 text-sm text-foreground"
+          >
+            <option value="todos">Todos</option>
+            {users.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          De
+          <input
+            type="date"
+            value={fromF}
+            onChange={(e) => setFromF(e.target.value)}
+            className="bg-background border border-border rounded-md px-2.5 py-1.5 text-sm text-foreground"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Até
+          <input
+            type="date"
+            value={toF}
+            onChange={(e) => setToF(e.target.value)}
+            className="bg-background border border-border rounded-md px-2.5 py-1.5 text-sm text-foreground"
+          />
+        </label>
+        {hasFilters && (
+          <button
+            onClick={() => {
+              setTypeF("todos");
+              setUserF("todos");
+              setFromF("");
+              setToF("");
+            }}
+            className="text-xs text-accent hover:underline pb-2"
+          >
+            Limpar filtros
+          </button>
+        )}
+      </div>
+
+      <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="p-10 text-center text-sm text-muted-foreground">
+            {entries.length === 0
+              ? "Sem dados — ainda não há acções registadas nesta conta."
+              : "Sem entradas com os filtros actuais."}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/60 text-muted-foreground text-xs uppercase tracking-wider">
+                <tr>
+                  <th className="px-4 py-3 text-left">Data / Hora</th>
+                  <th className="px-4 py-3 text-left">Utilizador</th>
+                  <th className="px-4 py-3 text-left">Item</th>
+                  <th className="px-4 py-3 text-left">Anterior</th>
+                  <th className="px-4 py-3 text-left">Novo</th>
+                  <th className="px-4 py-3">Δ%</th>
+                  <th className="px-4 py-3 text-left">Justificativa</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filtered.map((e, i) => (
+                  <tr key={i} className="hover:bg-muted/30">
+                    <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{e.dt}</td>
+                    <td className="px-4 py-3">{e.user}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className={`size-1.5 rounded-full ${AUDIT_DOT[auditTypeOf(e)]}`} />
+                        {e.item}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{e.from}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{e.to}</td>
+                    <td className={`px-4 py-3 text-center font-mono ${e.delta > 10 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                      {e.delta > 0 ? `+${e.delta}%` : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground max-w-sm">{e.just}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="bg-muted/30 border-t border-border px-4 py-3 flex items-center justify-between text-xs text-muted-foreground flex-wrap gap-2">
+          <span>
+            {filtered.length} entradas
+            {hasFilters ? ` (de ${entries.length})` : ""} · só leitura
+          </span>
+          <span className="inline-flex items-center gap-1.5" title={hash ?? ""}>
+            <Lock className="size-3" /> Hash SHA-256:{" "}
+            <code className="font-mono">{hash ? `${hash.slice(0, 4)}…${hash.slice(-4)}` : "…"}</code>
+          </span>
         </div>
-      )}
+      </div>
     </div>
   );
 }
+
 
 // ===================== RELATÓRIO =====================
 function RelatorioView({

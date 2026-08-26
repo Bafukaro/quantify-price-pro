@@ -253,3 +253,35 @@ export function allStats(): MaterialStats[] {
 export function marketMedian(materialId: string): number {
   return marketMedianForCity(materialId, activeCity);
 }
+
+// === Fuzzy match: nome livre do BoQ → material da Base de Preços ===
+const normName = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/**
+ * Correspondência aproximada por nome (tokens partilhados ≥50%, ou substring).
+ * Usada quando a linha do BoQ não tem materialId directo.
+ */
+export function findMaterialFuzzy(name: string): Material | null {
+  const n = normName(name);
+  if (!n) return null;
+  const tokens = n.split(" ").filter((t) => t.length > 2);
+  let best: Material | null = null;
+  let bestScore = 0;
+  for (const m of materials) {
+    const mn = normName(m.name);
+    if (mn === n || (n.length > 4 && (mn.includes(n) || n.includes(mn)))) return m;
+    const mt = new Set(mn.split(" "));
+    const score = tokens.length ? tokens.filter((t) => mt.has(t)).length / tokens.length : 0;
+    if (score > bestScore) {
+      bestScore = score;
+      best = m;
+    }
+  }
+  return bestScore >= 0.5 ? best : null;
+}
