@@ -168,7 +168,7 @@ export const fmtMT = (n: number) =>
   new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 0 }).format(n) + " MT";
 
 // 3D Phase mapping → BoQ groups for cost breakdown per element
-export type Phase3D = "fundacao" | "pilares" | "lajes" | "alvenaria" | "cobertura" | "acabamentos";
+export type Phase3D = "fundacao" | "pilares" | "lajes" | "alvenaria" | "cobertura" | "instalacoes" | "acabamentos";
 
 export const phase3DInfo: Record<Phase3D, {
   label: string;
@@ -219,6 +219,15 @@ export const phase3DInfo: Record<Phase3D, {
       { item: "C.1", desc: "Estrutura metálica de cobertura", un: "kg", qty: 1850, preco: 195 },
       { item: "C.2", desc: "Chapa lacada para cobertura", un: "m²", qty: 110, preco: 1480 },
       { item: "C.3", desc: "Caleiras e tubos de queda", un: "m", qty: 48, preco: 380 },
+    ],
+  },
+  instalacoes: {
+    label: "Instalações",
+    desc: "Redes eléctricas, hidráulicas e equipamentos MEP",
+    items: [
+      { item: "I.1", desc: "Cabo XV 3×2,5 mm² — circuitos de tomadas e iluminação", un: "m", qty: 850, preco: 165 },
+      { item: "I.2", desc: "Tubo PVC PN10 Ø50 — rede de esgotos", un: "m", qty: 120, preco: 190 },
+      { item: "I.3", desc: "Aparelhagem, quadros e equipamentos MEP", un: "un", qty: 24, preco: 2400 },
     ],
   },
   acabamentos: {

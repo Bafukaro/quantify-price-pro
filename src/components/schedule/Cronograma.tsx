@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   Camera,
@@ -21,11 +21,14 @@ import {
   currentWeek,
   deleteDailyReport,
   deleteScheduleTask,
+  isTemplateCritical,
   pendingQty,
   realPct,
   reviewDailyReport,
+  seedScheduleTemplate,
   updateScheduleTask,
   useSchedule,
+  useScheduleLoaded,
   type DailyReport,
   type ScheduleTask,
 } from "@/data/schedule";
@@ -36,6 +39,21 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 function phaseColor(phases: string[], phase: string) {
   const i = Math.max(0, phases.indexOf(phase));
   return phaseColors[`F${i % 6}`];
+}
+
+/** Lista ordenada de fases: primeiro as que aparecem nas tarefas (ordem do Gantt),
+ *  depois as restantes fases do projecto. Garante cor consistente por nome. */
+function buildPhaseList(phaseNames: string[], tasks: ScheduleTask[]) {
+  const names: string[] = [];
+  [...tasks]
+    .sort((a, b) => a.startWeek - b.startWeek)
+    .forEach((t) => {
+      if (t.phase && !names.includes(t.phase)) names.push(t.phase);
+    });
+  phaseNames.forEach((p) => {
+    if (p && !names.includes(p)) names.push(p);
+  });
+  return names;
 }
 
 type Sub = "gantt" | "reports" | "fases";
@@ -130,6 +148,19 @@ function GanttView({
     unit: "un",
   });
   const [err, setErr] = useState<string | null>(null);
+  const [seedBusy, setSeedBusy] = useState(false);
+
+  // Pré-preenchimento automático do cronograma tipo no projecto MALANGA
+  // (uma única vez; tarefas ficam persistidas na base de dados).
+  const scheduleLoaded = useScheduleLoaded(project.id);
+  useEffect(() => {
+    if (!/malanga/i.test(project.name)) return;
+    if (!scheduleLoaded || tasks.length > 0) return;
+    setSeedBusy(true);
+    void seedScheduleTemplate(project.id).finally(() => setSeedBusy(false));
+  }, [project.id, project.name, scheduleLoaded, tasks.length]);
+
+  const phaseList = useMemo(() => buildPhaseList(phaseNames, tasks), [phaseNames, tasks]);
 
   const totalWeeks = useMemo(
     () => Math.max(12, ...tasks.map((t) => t.startWeek + t.durWeeks)),
@@ -145,7 +176,13 @@ function GanttView({
           // Planeado = fracção do tempo decorrido dentro da janela da tarefa.
           const elapsed = week - t.startWeek;
           const planned = week === 0 ? 0 : Math.max(0, Math.min(100, Math.round((elapsed / t.durWeeks) * 100)));
-          const real = realPct(t, reports);
+          // Real = unidades confirmadas / alvo; sem alvo definido, usa o
+          // progresso manual editável (plannedPct).
+          const hasReports = reports.some((r) => r.taskId === t.id);
+          const real =
+            t.targetQty > 0 || hasReports
+              ? realPct(t, reports)
+              : Math.max(0, Math.min(100, Math.round(t.plannedPct)));
           const delta = real - planned;
           return { t, planned, real, delta };
         }),
@@ -153,11 +190,13 @@ function GanttView({
   );
 
   const criticalIds = useMemo(() => {
-    // Caminho crítico = tarefas em curso (janela aberta) com atraso real ≥ 10 p.p.
+    // Caminho crítico = tarefas com folga zero declaradas no plano
+    // (Escavação → Sapatas → Pilares R/C → Laje → Alvenaria → Cobertura →
+    // Pintura → Entrega), mais qualquer tarefa em curso com atraso ≥ 10 p.p.
     const set = new Set<string>();
     for (const r of rows) {
       const started = week > r.t.startWeek;
-      if (started && r.real < 100 && r.delta <= -10) set.add(r.t.id);
+      if (isTemplateCritical(r.t.name) || (started && r.real < 100 && r.delta <= -10)) set.add(r.t.id);
     }
     return set;
   }, [rows, week]);
@@ -270,7 +309,7 @@ function GanttView({
 
       {/* Legend */}
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-        {(phaseNames.length ? phaseNames : []).map((p, i) => (
+        {phaseList.map((p, i) => (
           <span key={p} className="inline-flex items-center gap-1.5">
             <span className="size-3 rounded-sm" style={{ background: phaseColors[`F${i % 6}`] }} /> {p}
           </span>
@@ -279,14 +318,29 @@ function GanttView({
           <span className="h-2 w-4 rounded-sm bg-accent" /> Real reportado
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="size-3 rounded-sm border-2 border-destructive" /> Caminho crítico (atraso ≥ 10 p.p.)
+          <span className="size-3 rounded-sm border-2 border-dashed border-destructive" /> Caminho crítico (folga zero)
         </span>
       </div>
 
       {/* Gantt */}
       {rows.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          Sem tarefas no cronograma. Crie a primeira tarefa com quantidade-alvo (ex: 100 caixas).
+        <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground space-y-3">
+          <div>
+            {seedBusy
+              ? "A pré-preencher o cronograma tipo…"
+              : "Sem tarefas no cronograma. Crie a primeira tarefa com quantidade-alvo (ex: 100 caixas)."}
+          </div>
+          {!seedBusy && (
+            <button
+              onClick={() => {
+                setSeedBusy(true);
+                void seedScheduleTemplate(project.id).finally(() => setSeedBusy(false));
+              }}
+              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90"
+            >
+              <Plus className="size-4" /> Pré-preencher cronograma tipo (13 tarefas)
+            </button>
+          )}
         </div>
       ) : (
         <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
@@ -319,7 +373,7 @@ function GanttView({
                     delta={delta}
                     totalWeeks={totalWeeks}
                     week={week}
-                    color={phaseColor(phaseNames, t.phase)}
+                    color={phaseColor(phaseList, t.phase)}
                     critical={criticalIds.has(t.id)}
                     confirmed={confirmedQty(reports, t.id)}
                     onClose={() =>
@@ -395,6 +449,20 @@ function GanttRow({
           <span>
             {confirmed}/{t.targetQty || "—"} {t.unit}
           </span>
+          {t.targetQty <= 0 && (
+            <label className="inline-flex items-center gap-1" title="Progresso manual (editável)">
+              ·
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={t.plannedPct}
+                onChange={(e) => updateScheduleTask(t.id, { plannedPct: Number(e.target.value) })}
+                className="w-11 px-1 py-0.5 rounded border border-border bg-background text-[10px] font-mono text-foreground"
+              />
+              %
+            </label>
+          )}
           <span className={statusColor}>· {statusLabel}</span>
           <button onClick={onClose} className="ml-auto hover:text-accent" title="Fechar/reabrir tarefa">
             <Check className="size-3.5" />
@@ -419,10 +487,15 @@ function GanttRow({
         )}
         {/* Barra planeada */}
         <div
-          className={`absolute top-2 h-4 rounded-md overflow-hidden shadow-soft ${
-            critical ? "ring-2 ring-destructive ring-offset-1 ring-offset-surface-elevated" : ""
-          }`}
-          style={{ left: `${left}%`, width: `${width}%`, background: color, opacity: 0.55 }}
+          className="absolute top-2 h-4 rounded-md overflow-hidden shadow-soft"
+          style={{
+            left: `${left}%`,
+            width: `${width}%`,
+            background: color,
+            opacity: 0.55,
+            outline: critical ? "2px dashed hsl(var(--destructive))" : undefined,
+            outlineOffset: critical ? 2 : undefined,
+          }}
         >
           <div className="h-full bg-black/25" style={{ width: `${planned}%` }} />
           <span className="absolute inset-0 flex items-center px-1.5 text-[9px] font-mono text-white/90">

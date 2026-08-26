@@ -18,6 +18,7 @@ export const PHASES: PhaseKey[] = [
   "lajes",
   "alvenaria",
   "cobertura",
+  "instalacoes",
   "acabamentos",
 ];
 
@@ -114,6 +115,14 @@ const RECIPES: Record<PhaseKey, { label: string; desc: string; recipes: Recipe[]
     recipes: [
       { materialId: "m-chapa-ibr-0-5-mm", desc: "Chapa IBR 0,5 mm (1,15 m²/m² c/ sobreposição)", factor: 1.15, basis: "area" },
       { materialId: "m-madeira-estrutural-pinho-3876-38114", desc: "Madeira estrutural (2,5 m/m²)", factor: 2.5, basis: "area" },
+    ],
+  },
+  instalacoes: {
+    label: "Instalações",
+    desc: "Redes eléctricas, hidráulicas e equipamentos MEP",
+    recipes: [
+      { materialId: "m-cabo-xv-25", desc: "Cabo XV 3×2,5 mm² (1,2 m/m²)", factor: 1.2, basis: "area" },
+      { materialId: "m-pvc-pn10-50", desc: "Tubo PVC PN10 Ø50 (0,6 m/m²)", factor: 0.6, basis: "area" },
     ],
   },
   acabamentos: {

@@ -50,7 +50,11 @@ const CLASS_PHASE: { rx: RegExp; phase: PhaseKey }[] = [
   { rx: /ROOF/i, phase: "cobertura" },
   { rx: /SLAB|PLATE|BEAM|STAIRFLIGHT|STAIR/i, phase: "lajes" },
   { rx: /WALL|CURTAINWALL/i, phase: "alvenaria" },
-  { rx: /DOOR|WINDOW|COVERING|FURNISH|RAILING|FLOWFITTING|FLOWSEGMENT|FLOWTERMINAL/i, phase: "acabamentos" },
+  {
+    rx: /FAN|DUCT|DAMPER|AIRTERMINAL|CABLESEGMENT|CABLECARRIER|FLOWSEGMENT|FLOWTERMINAL|SANITARYTERMINAL|VALVE|WIRINGTERMINAL/i,
+    phase: "instalacoes",
+  },
+  { rx: /DOOR|WINDOW|COVERING|FURNISH|RAILING|FLOWFITTING/i, phase: "acabamentos" },
 ];
 
 export function phaseOfClass(ifcClass: string): PhaseKey {

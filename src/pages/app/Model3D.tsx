@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, ContactShadows } from "@react-three/drei";
@@ -36,7 +36,16 @@ const STAGE_LABELS: Record<string, string> = {
 const fmtBytes = (b: number) =>
   b > 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
 
-const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "acabamentos"];
+const STAGE_PCT: Record<string, number> = {
+  init: 8,
+  download: 30,
+  parse: 55,
+  geometry: 80,
+  rebar: 90,
+  merge: 96,
+};
+
+const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "instalacoes", "acabamentos"];
 
 type Model3DProps = { projectId?: string };
 
@@ -66,6 +75,16 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
   const [reloadKey, setReloadKey] = useState(0);
   const [rotSteps, setRotSteps] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Ao entrar na tab com um modelo guardado (ou ao trocar de projecto), volta
+  // ao estado de loading até o modelo estar visível no canvas — nunca mostra
+  // um painel em branco sem indicação de estado.
+  useEffect(() => {
+    if (uploaded) {
+      setLoadState("loading");
+      setProgress(null);
+    }
+  }, [uploaded?.url]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const retryLoad = () => {
     setLoadError(null);
@@ -131,7 +150,7 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
   const info = selected ? phaseData[selected] : null;
   const total = info ? info.total : null;
   const counts = useMemo(() => {
-    const c: Record<PhaseKey, number> = { fundacao: 0, pilares: 0, lajes: 0, alvenaria: 0, cobertura: 0, acabamentos: 0 };
+    const c: Record<PhaseKey, number> = { fundacao: 0, pilares: 0, lajes: 0, alvenaria: 0, cobertura: 0, instalacoes: 0, acabamentos: 0 };
     meshes.forEach((m) => { c[overrides[m.id] ?? m.phase]++; });
     return c;
   }, [meshes, overrides]);
@@ -191,20 +210,25 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
         {/* Canvas */}
         <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
           <div className="h-[560px] bg-gradient-to-b from-[hsl(220_30%_94%)] to-[hsl(220_25%_88%)] relative">
-            {uploaded && loadState === "loading" && (
-              <div className="absolute top-4 left-4 z-10 pointer-events-none flex items-center gap-2 rounded-md bg-background/80 backdrop-blur border border-border px-3 py-1.5 text-xs text-muted-foreground shadow-soft">
-                <div className="size-3.5 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-                {progress
-                  ? `${
-                      progress.stage === "download"
-                        ? "A obter ficheiro"
-                        : progress.stage === "parse"
-                        ? "A interpretar IFC"
-                        : progress.stage === "merge"
-                        ? "A optimizar geometria"
-                        : "A extrair geometria"
-                    }${progress.elements ? ` · ${progress.elements} elementos` : ""}…`
-                  : `A processar ${uploaded.name}…`}
+            {uploaded && loadState !== "ready" && loadState !== "error" && (
+              <div className="absolute inset-0 z-10 grid place-items-center bg-background/90 p-6">
+                <div className="w-full max-w-sm text-center space-y-4">
+                  <Box className="size-10 text-primary mx-auto animate-pulse" />
+                  <div className="text-sm font-medium">
+                    A carregar modelo {uploaded.ext.toUpperCase()}
+                    {progress?.elements ? ` — ${progress.elements.toLocaleString("pt-PT")} elementos` : ""}
+                    {uploaded.size ? ` · ${fmtBytes(uploaded.size)}` : ""}
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-500"
+                      style={{ width: `${progress ? (STAGE_PCT[progress.stage] ?? 10) : 5}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {progress ? `${STAGE_LABELS[progress.stage] ?? progress.stage}…` : "A preparar…"}
+                  </div>
+                </div>
               </div>
             )}
             <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-1.5">

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import * as THREE from "three";
 import "@react-three/fiber";
 
-export type PhaseKey = "fundacao" | "pilares" | "lajes" | "alvenaria" | "cobertura" | "acabamentos";
+export type PhaseKey = "fundacao" | "pilares" | "lajes" | "alvenaria" | "cobertura" | "instalacoes" | "acabamentos";
 
 const COLORS: Record<PhaseKey, string> = {
   fundacao: "#6b7280",
@@ -10,10 +10,9 @@ const COLORS: Record<PhaseKey, string> = {
   lajes: "#94a3b8",
   alvenaria: "#c97b4a",
   cobertura: "#5c2018",
+  instalacoes: "#0e7490",
   acabamentos: "#e8d5b7",
 };
-
-const HIGHLIGHT = "#f59e0b";
 
 // Building footprint
 const W = 12; // X
@@ -25,8 +24,7 @@ const COL_Z = [-D / 2 + 0.4, D / 2 - 0.4];
 
 function phaseColor(phase: PhaseKey, selected: PhaseKey | null, visible: boolean) {
   if (!visible) return null;
-  if (selected && selected === phase) return HIGHLIGHT;
-  if (selected && selected !== phase) return COLORS[phase];
+  // Fase seleccionada mantém a cor original; as outras são esbatidas (opacity).
   return COLORS[phase];
 }
 
@@ -43,8 +41,8 @@ function PhaseGroup({
 }) {
   const isSel = selected === phase;
   const dim = selected !== null && !isSel;
-  const color = isSel ? HIGHLIGHT : COLORS[phase];
-  const opacity = dim ? 0.18 : 1;
+  const color = COLORS[phase];
+  const opacity = dim ? 0.15 : 1;
   return (
     <group
       onPointerDown={(e) => {

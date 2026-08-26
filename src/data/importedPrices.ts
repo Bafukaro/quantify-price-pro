@@ -328,6 +328,8 @@ export const importedMaterials: Material[] = [
     id: "m-cornija-eps-pvc", name: "Cornija (EPS/PVC)", unit: "m", category: "Drywall",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 120.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 128.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 135.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
@@ -340,42 +342,56 @@ export const importedMaterials: Material[] = [
     id: "m-ripas-barrotes-para-tecto-madeira", name: "Ripas/Barrotes para tecto (madeira)", unit: "m", category: "Drywall",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 110.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 118.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 125.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
     id: "m-manta-betuminosa-torch-on-4-mm-app", name: "Manta betuminosa torch-on 4 mm (APP)", unit: "m²", category: "Impermeabilização",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 650.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 695.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 710.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
     id: "m-primario-betuminoso", name: "Primário betuminoso", unit: "L", category: "Impermeabilização",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 280.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 298.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 310.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
     id: "m-impermeabilizante-acrilico-balde-20-l", name: "Impermeabilizante acrílico (balde 20 L)", unit: "balde", category: "Impermeabilização",
     quotes: [
       { supplierId: "s-somofer", price: 6900.0, date: "2026-04-14", city: "Maputo", note: "Real-informado – ancorado em Multiseal Plascon Somofer" },
+      { supplierId: "s-ferragens-polana", price: 7200.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 7450.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
     id: "m-selante-silicone-neutro-cartucho", name: "Selante silicone neutro (cartucho)", unit: "cartucho", category: "Impermeabilização",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 350.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 370.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 390.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
     id: "m-selante-pu-cartucho", name: "Selante PU (cartucho)", unit: "cartucho", category: "Impermeabilização",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 420.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 445.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 468.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
     id: "m-espuma-expansiva-pu", name: "Espuma expansiva PU", unit: "lata", category: "Impermeabilização",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 550.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 585.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 610.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
