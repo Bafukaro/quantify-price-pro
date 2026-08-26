@@ -191,20 +191,25 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
         {/* Canvas */}
         <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
           <div className="h-[560px] bg-gradient-to-b from-[hsl(220_30%_94%)] to-[hsl(220_25%_88%)] relative">
-            {uploaded && loadState === "loading" && (
-              <div className="absolute top-4 left-4 z-10 pointer-events-none flex items-center gap-2 rounded-md bg-background/80 backdrop-blur border border-border px-3 py-1.5 text-xs text-muted-foreground shadow-soft">
-                <div className="size-3.5 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-                {progress
-                  ? `${
-                      progress.stage === "download"
-                        ? "A obter ficheiro"
-                        : progress.stage === "parse"
-                        ? "A interpretar IFC"
-                        : progress.stage === "merge"
-                        ? "A optimizar geometria"
-                        : "A extrair geometria"
-                    }${progress.elements ? ` · ${progress.elements} elementos` : ""}…`
-                  : `A processar ${uploaded.name}…`}
+            {uploaded && loadState !== "ready" && loadState !== "error" && (
+              <div className="absolute inset-0 z-10 grid place-items-center bg-background/90 p-6">
+                <div className="w-full max-w-sm text-center space-y-4">
+                  <Box className="size-10 text-primary mx-auto animate-pulse" />
+                  <div className="text-sm font-medium">
+                    A carregar modelo {uploaded.ext.toUpperCase()}
+                    {progress?.elements ? ` — ${progress.elements.toLocaleString("pt-PT")} elementos` : ""}
+                    {uploaded.size ? ` · ${fmtBytes(uploaded.size)}` : ""}
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-500"
+                      style={{ width: `${progress ? (STAGE_PCT[progress.stage] ?? 10) : 5}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {progress ? `${STAGE_LABELS[progress.stage] ?? progress.stage}…` : "A preparar…"}
+                  </div>
+                </div>
               </div>
             )}
             <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-1.5">
