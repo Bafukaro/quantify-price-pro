@@ -9,8 +9,6 @@ import type { RebarTakeoff } from "@/lib/rebar";
 import type { PhaseKey } from "./BuildingModel";
 import { PHASE_COLORS } from "./BuildingModel";
 
-const HIGHLIGHT = "#f59e0b";
-
 export type Classification = { phase: PhaseKey; confidence: number; reason: string };
 
 const NAME_RULES: { rx: RegExp; phase: PhaseKey; reason: string }[] = [
