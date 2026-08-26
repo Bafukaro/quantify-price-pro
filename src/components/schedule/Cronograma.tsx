@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   CalendarDays,
   Camera,
   Check,
@@ -8,11 +9,12 @@ import {
   GanttChartSquare,
   Plus,
   Trash2,
+  Wand2,
   X,
 } from "lucide-react";
 import { phaseColors } from "@/data/mock";
 import { useAuth } from "@/hooks/useAuth";
-import { setProjectPhasePct } from "@/data/store";
+import { setProjectPhasePct, useProjectElementGroups, useProjectQuantities } from "@/data/store";
 import type { Project as ProjectRecord } from "@/data/projects";
 import {
   addDailyReport,
@@ -21,6 +23,7 @@ import {
   currentWeek,
   deleteDailyReport,
   deleteScheduleTask,
+  insertGeneratedSchedule,
   isTemplateCritical,
   pendingQty,
   realPct,
@@ -32,6 +35,7 @@ import {
   type DailyReport,
   type ScheduleTask,
 } from "@/data/schedule";
+import { generateDynamicSchedule, type GenResult } from "@/lib/scheduleGen";
 
 const START_KEY = (id: string) => `sqi.schedule.start.${id}`;
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -149,6 +153,8 @@ function GanttView({
   });
   const [err, setErr] = useState<string | null>(null);
   const [seedBusy, setSeedBusy] = useState(false);
+  const [genBusy, setGenBusy] = useState(false);
+  const [genPreview, setGenPreview] = useState<GenResult | null>(null);
 
   // Pré-preenchimento automático do cronograma tipo no projecto MALANGA
   // (uma única vez; tarefas ficam persistidas na base de dados).
@@ -159,6 +165,32 @@ function GanttView({
     setSeedBusy(true);
     void seedScheduleTemplate(project.id).finally(() => setSeedBusy(false));
   }, [project.id, project.name, scheduleLoaded, tasks.length]);
+
+  // Fonte de quantidades do modelo carregado (mesma do BoQ).
+  const groups = useProjectElementGroups(project.id);
+  const byPhase = useProjectQuantities(project.id);
+  const canGenerate = groups.length > 0;
+
+  const runGenerator = () => {
+    setGenBusy(true);
+    try {
+      const res = generateDynamicSchedule({ groups, byPhase: (byPhase ?? {}) as any });
+      if (res.tasks.length === 0) setErr("Não foi possível gerar — sem quantidades extraídas do modelo.");
+      else setGenPreview(res);
+    } finally {
+      setGenBusy(false);
+    }
+  };
+
+  const applyGenerated = async () => {
+    if (!genPreview) return;
+    setGenBusy(true);
+    const e = await insertGeneratedSchedule(project.id, genPreview.tasks);
+    setGenBusy(false);
+    if (e) return setErr(e);
+    setGenPreview(null);
+    setErr(null);
+  };
 
   const phaseList = useMemo(() => buildPhaseList(phaseNames, tasks), [phaseNames, tasks]);
 
@@ -196,7 +228,8 @@ function GanttView({
     const set = new Set<string>();
     for (const r of rows) {
       const started = week > r.t.startWeek;
-      if (isTemplateCritical(r.t.name) || (started && r.real < 100 && r.delta <= -10)) set.add(r.t.id);
+      if (r.t.critical || isTemplateCritical(r.t.name) || (started && r.real < 100 && r.delta <= -10))
+        set.add(r.t.id);
     }
     return set;
   }, [rows, week]);
@@ -239,14 +272,94 @@ function GanttView({
             {startDate ? `Semana ${week} de ${totalWeeks}` : "defina a data para calcular o planeado"}
           </span>
         </div>
-        <button
-          onClick={() => setOpen((v) => !v)}
-          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90"
-        >
-          {open ? <X className="size-4" /> : <Plus className="size-4" />}
-          {open ? "Cancelar" : "Nova tarefa"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={runGenerator}
+            disabled={!canGenerate || genBusy}
+            title={canGenerate ? "Gerar tarefas a partir das quantidades reais do modelo (rendimentos + cura REBAP)" : "Carregue um modelo 3D para gerar o cronograma"}
+            className="inline-flex items-center gap-2 border border-accent text-accent px-4 py-2 rounded-md text-sm font-medium hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Wand2 className="size-4" />
+            {genBusy ? "A gerar…" : "Gerar cronograma dinâmico"}
+          </button>
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90"
+          >
+            {open ? <X className="size-4" /> : <Plus className="size-4" />}
+            {open ? "Cancelar" : "Nova tarefa"}
+          </button>
+        </div>
       </div>
+
+      {/* Aviso quando não há tarefas nem modelo para gerar */}
+      {tasks.length === 0 && !canGenerate && !seedBusy && (
+        <div className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3">
+          <AlertTriangle className="size-4 text-warning shrink-0 mt-0.5" />
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            <span className="font-medium text-foreground">Sem tarefas e sem modelo carregado.</span> Carregue um
+            modelo 3D no separador Vista 3D para gerar o cronograma a partir das quantidades reais — ou adicione
+            tarefas manualmente.
+          </p>
+        </div>
+      )}
+
+      {/* Pré-visualização do cronograma gerado */}
+      {genPreview && (
+        <div className="rounded-xl border border-accent/40 bg-accent/5 p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="font-display text-base">Cronograma gerado a partir do modelo</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {genPreview.tasks.length} tarefas · rendimentos moçambicanos · cura REBAP Art. 68
+              </div>
+            </div>
+            <button onClick={() => setGenPreview(null)} className="text-muted-foreground hover:text-foreground">
+              <X className="size-4" />
+            </button>
+          </div>
+          {genPreview.warnings.length > 0 && (
+            <ul className="space-y-1">
+              {genPreview.warnings.map((w) => (
+                <li key={w} className="flex items-start gap-2 text-xs text-warning">
+                  <AlertTriangle className="size-3.5 shrink-0 mt-0.5" /> {w}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="max-h-64 overflow-y-auto rounded-lg border border-border divide-y divide-border bg-surface-elevated">
+            {genPreview.tasks.map((t) => (
+              <div key={t.name} className="px-3 py-2 flex items-center gap-3 text-xs">
+                <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${t.kind === "cura" ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"}`}>
+                  {t.kind === "cura" ? "CURA" : "OBRA"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-foreground truncate">{t.name}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">{t.why}</div>
+                </div>
+                <span className="shrink-0 font-mono text-muted-foreground">
+                  S{t.startWeek + 1}–S{t.startWeek + t.durWeeks} · {t.durWeeks} sem
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setGenPreview(null)}
+              className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-muted"
+            >
+              Descartar
+            </button>
+            <button
+              onClick={() => void applyGenerated()}
+              disabled={genBusy}
+              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {genBusy ? "A guardar…" : `Aplicar cronograma (${genPreview.tasks.length} tarefas)`}
+            </button>
+          </div>
+        </div>
+      )}
 
       {open && (
         <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-2 p-4 rounded-lg border border-border bg-muted/30">
@@ -316,6 +429,16 @@ function GanttView({
         ))}
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2 w-4 rounded-sm bg-accent" /> Real reportado
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="size-3 rounded-sm"
+            style={{
+              background: "repeating-linear-gradient(45deg, hsl(var(--muted-foreground) / 0.5), hsl(var(--muted-foreground) / 0.5) 2px, transparent 2px, transparent 5px)",
+              border: "1px solid hsl(var(--border))",
+            }}
+          />{" "}
+          Cura (REBAP)
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="size-3 rounded-sm border-2 border-dashed border-destructive" /> Caminho crítico (folga zero)
@@ -485,21 +608,32 @@ function GanttRow({
             style={{ left: `${(week / totalWeeks) * 100}%` }}
           />
         )}
-        {/* Barra planeada */}
+        {/* Barra planeada (cura = tracejado claro, sem percentagem) */}
         <div
           className="absolute top-2 h-4 rounded-md overflow-hidden shadow-soft"
-          style={{
-            left: `${left}%`,
-            width: `${width}%`,
-            background: color,
-            opacity: 0.55,
-            outline: critical ? "2px dashed hsl(var(--destructive))" : undefined,
-            outlineOffset: critical ? 2 : undefined,
-          }}
+          style={
+            t.kind === "cura"
+              ? {
+                  left: `${left}%`,
+                  width: `${width}%`,
+                  background: `repeating-linear-gradient(45deg, ${color}66, ${color}66 4px, transparent 4px, transparent 8px)`,
+                  border: `1px dashed ${color}`,
+                  outline: critical ? "2px dashed hsl(var(--destructive))" : undefined,
+                  outlineOffset: critical ? 2 : undefined,
+                }
+              : {
+                  left: `${left}%`,
+                  width: `${width}%`,
+                  background: color,
+                  opacity: 0.55,
+                  outline: critical ? "2px dashed hsl(var(--destructive))" : undefined,
+                  outlineOffset: critical ? 2 : undefined,
+                }
+          }
         >
-          <div className="h-full bg-black/25" style={{ width: `${planned}%` }} />
+          {t.kind !== "cura" && <div className="h-full bg-black/25" style={{ width: `${planned}%` }} />}
           <span className="absolute inset-0 flex items-center px-1.5 text-[9px] font-mono text-white/90">
-            plan {planned}%
+            {t.kind === "cura" ? <span className="italic text-foreground/70">cura {t.durWeeks * 7}d</span> : `plan ${planned}%`}
           </span>
         </div>
         {/* Barra real */}
