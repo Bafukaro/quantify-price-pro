@@ -36,6 +36,15 @@ const STAGE_LABELS: Record<string, string> = {
 const fmtBytes = (b: number) =>
   b > 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
 
+const STAGE_PCT: Record<string, number> = {
+  init: 8,
+  download: 30,
+  parse: 55,
+  geometry: 80,
+  rebar: 90,
+  merge: 96,
+};
+
 const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "instalacoes", "acabamentos"];
 
 type Model3DProps = { projectId?: string };
