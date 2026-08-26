@@ -148,6 +148,18 @@ function GanttView({
     unit: "un",
   });
   const [err, setErr] = useState<string | null>(null);
+  const [seedBusy, setSeedBusy] = useState(false);
+
+  // Pré-preenchimento automático do cronograma tipo no projecto MALANGA
+  // (uma única vez; tarefas ficam persistidas na base de dados).
+  useEffect(() => {
+    if (!/malanga/i.test(project.name)) return;
+    if (!isScheduleLoaded(project.id) || tasks.length > 0) return;
+    setSeedBusy(true);
+    void seedScheduleTemplate(project.id).finally(() => setSeedBusy(false));
+  }, [project.id, project.name, tasks.length]);
+
+  const phaseList = useMemo(() => buildPhaseList(phaseNames, tasks), [phaseNames, tasks]);
 
   const totalWeeks = useMemo(
     () => Math.max(12, ...tasks.map((t) => t.startWeek + t.durWeeks)),
@@ -163,7 +175,13 @@ function GanttView({
           // Planeado = fracção do tempo decorrido dentro da janela da tarefa.
           const elapsed = week - t.startWeek;
           const planned = week === 0 ? 0 : Math.max(0, Math.min(100, Math.round((elapsed / t.durWeeks) * 100)));
-          const real = realPct(t, reports);
+          // Real = unidades confirmadas / alvo; sem alvo definido, usa o
+          // progresso manual editável (plannedPct).
+          const hasReports = reports.some((r) => r.taskId === t.id);
+          const real =
+            t.targetQty > 0 || hasReports
+              ? realPct(t, reports)
+              : Math.max(0, Math.min(100, Math.round(t.plannedPct)));
           const delta = real - planned;
           return { t, planned, real, delta };
         }),
@@ -171,11 +189,13 @@ function GanttView({
   );
 
   const criticalIds = useMemo(() => {
-    // Caminho crítico = tarefas em curso (janela aberta) com atraso real ≥ 10 p.p.
+    // Caminho crítico = tarefas com folga zero declaradas no plano
+    // (Escavação → Sapatas → Pilares R/C → Laje → Alvenaria → Cobertura →
+    // Pintura → Entrega), mais qualquer tarefa em curso com atraso ≥ 10 p.p.
     const set = new Set<string>();
     for (const r of rows) {
       const started = week > r.t.startWeek;
-      if (started && r.real < 100 && r.delta <= -10) set.add(r.t.id);
+      if (isTemplateCritical(r.t.name) || (started && r.real < 100 && r.delta <= -10)) set.add(r.t.id);
     }
     return set;
   }, [rows, week]);
