@@ -574,6 +574,129 @@ function OrcamentoView({
   );
 }
 
+/**
+ * Drawer "Ver fornecedores": lista as cotações da Base de Preços para o
+ * material da linha (por materialId ou fuzzy match por nome), com desvio da
+ * mediana e botão para adoptar o preço — abre depois o modal de justificação
+ * já com o fornecedor pré-preenchido.
+ */
+function SuppliersDrawer({
+  label,
+  un,
+  materialId,
+  onPick,
+  onClose,
+}: {
+  label: string;
+  un: string;
+  materialId: string | null;
+  onPick: (price: number, supplierName: string) => void;
+  onClose: () => void;
+}) {
+  const material =
+    (materialId ? materials.find((m) => m.id === materialId) ?? null : null) ??
+    findMaterialFuzzy(label);
+  const stats = material ? getStats(material.id) : null;
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <aside className="absolute right-0 top-0 h-full w-full max-w-lg bg-surface-elevated border-l border-border shadow-elegant flex flex-col animate-fade-in">
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
+          <div>
+            <div className="font-display text-lg flex items-center gap-2">
+              <Store className="size-4 text-accent" /> Fornecedores
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+            {material && (
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                Material na base: <span className="text-foreground">{material.name}</span>
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {!stats || stats.byQuote.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+              Material não encontrado na base de preços. Insira o preço manualmente.
+            </div>
+          ) : (
+            <>
+              <div className="rounded-lg bg-muted/40 border border-border px-3 py-2 text-xs text-muted-foreground mb-3">
+                Mediana de referência:{" "}
+                <span className="font-mono font-medium text-foreground">
+                  {Math.round(stats.median).toLocaleString("pt-PT")} MT/{un}
+                </span>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="text-muted-foreground text-[11px] uppercase tracking-wider">
+                  <tr>
+                    <th className="pb-2 text-left">Fornecedor</th>
+                    <th className="pb-2 text-right">Preço (MT)</th>
+                    <th className="pb-2 text-right">Desvio</th>
+                    <th className="pb-2 text-left pl-3">Status</th>
+                    <th className="pb-2" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {/* Linha da mediana destacada como referência */}
+                  <tr className="font-medium bg-muted/30">
+                    <td className="py-2 pr-2 text-muted-foreground italic">Mediana de mercado</td>
+                    <td className="py-2 text-right font-mono">{Math.round(stats.median).toLocaleString("pt-PT")}</td>
+                    <td className="py-2 text-right font-mono text-muted-foreground">0%</td>
+                    <td className="py-2 pl-3 text-[11px] text-muted-foreground">referência</td>
+                    <td />
+                  </tr>
+                  {[...stats.byQuote]
+                    .sort((a, b) => a.quote.price - b.quote.price)
+                    .map(({ quote, supplier, deviationPct, risk }) => (
+                      <tr key={supplier.id} className="hover:bg-muted/20">
+                        <td className="py-2 pr-2">
+                          <div className="leading-tight">
+                            <div>{supplier.name}</div>
+                            <div className="text-[10px] text-muted-foreground">{supplier.location}</div>
+                          </div>
+                        </td>
+                        <td className="py-2 text-right font-mono">
+                          {quote.price.toLocaleString("pt-PT")}
+                        </td>
+                        <td
+                          className={`py-2 text-right font-mono text-xs ${
+                            deviationPct > 0 ? "text-warning" : "text-success"
+                          }`}
+                        >
+                          {deviationPct > 0 ? "+" : ""}
+                          {deviationPct.toFixed(1)}%
+                        </td>
+                        <td className="py-2 pl-3">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${RISK_COLOR[risk]}`}>
+                            {RISK_LABEL[risk]}
+                          </span>
+                        </td>
+                        <td className="py-2 text-right">
+                          <button
+                            onClick={() => onPick(quote.price, supplier.name)}
+                            className="text-[11px] font-medium text-accent border border-accent/50 rounded px-2 py-1 hover:bg-accent/10 whitespace-nowrap"
+                          >
+                            Usar este preço
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 const REASONS = [
   "Fornecedor específico exigido",
   "Actualização de cotação de mercado",
