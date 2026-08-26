@@ -328,6 +328,8 @@ export const importedMaterials: Material[] = [
     id: "m-cornija-eps-pvc", name: "Cornija (EPS/PVC)", unit: "m", category: "Drywall",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 120.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 128.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 135.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
@@ -340,6 +342,8 @@ export const importedMaterials: Material[] = [
     id: "m-ripas-barrotes-para-tecto-madeira", name: "Ripas/Barrotes para tecto (madeira)", unit: "m", category: "Drywall",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 110.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 118.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 125.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
@@ -370,18 +374,24 @@ export const importedMaterials: Material[] = [
     id: "m-selante-silicone-neutro-cartucho", name: "Selante silicone neutro (cartucho)", unit: "cartucho", category: "Impermeabilização",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 350.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 370.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 390.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
     id: "m-selante-pu-cartucho", name: "Selante PU (cartucho)", unit: "cartucho", category: "Impermeabilização",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 420.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 445.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 468.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
     id: "m-espuma-expansiva-pu", name: "Espuma expansiva PU", unit: "lata", category: "Impermeabilização",
     quotes: [
       { supplierId: "s-mercado-maputo-estimado", price: 550.0, date: "2026-04-14", city: "Maputo", note: "Estimado – mercado Maputo" },
+      { supplierId: "s-ferragens-polana", price: 585.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
+      { supplierId: "s-kangela-builders", price: 610.0, date: "2026-08-20", city: "Maputo", note: "Levantamento Ago/2026" },
     ],
   },
   {
