@@ -402,6 +402,7 @@ function OrcamentoView({
   projectId,
   boq,
   priceOverrides,
+  highlight,
 }: {
   ivaPct: number;
   contPct: number;
@@ -409,6 +410,8 @@ function OrcamentoView({
   projectId: string;
   boq: BoQSource;
   priceOverrides: Record<string, PriceOverride>;
+  /** Fase a destacar após clique num elemento 3D (scroll + highlight 3s). */
+  highlight?: { phase: PhaseKey; ts: number } | null;
 }) {
   const subtotalGeral = boqGrandTotal(boq);
   const contingencia = subtotalGeral * contPct;
