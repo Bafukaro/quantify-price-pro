@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, ContactShadows } from "@react-three/drei";
@@ -75,6 +75,16 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
   const [reloadKey, setReloadKey] = useState(0);
   const [rotSteps, setRotSteps] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Ao entrar na tab com um modelo guardado (ou ao trocar de projecto), volta
+  // ao estado de loading até o modelo estar visível no canvas — nunca mostra
+  // um painel em branco sem indicação de estado.
+  useEffect(() => {
+    if (uploaded) {
+      setLoadState("loading");
+      setProgress(null);
+    }
+  }, [uploaded?.url]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const retryLoad = () => {
     setLoadError(null);
