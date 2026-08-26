@@ -36,7 +36,7 @@ const STAGE_LABELS: Record<string, string> = {
 const fmtBytes = (b: number) =>
   b > 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${(b / 1024).toFixed(0)} KB`;
 
-const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "acabamentos"];
+const ALL: Phase3D[] = ["fundacao", "pilares", "lajes", "alvenaria", "cobertura", "instalacoes", "acabamentos"];
 
 type Model3DProps = { projectId?: string };
 
@@ -131,7 +131,7 @@ export default function Model3D({ projectId: projectIdProp }: Model3DProps = {})
   const info = selected ? phaseData[selected] : null;
   const total = info ? info.total : null;
   const counts = useMemo(() => {
-    const c: Record<PhaseKey, number> = { fundacao: 0, pilares: 0, lajes: 0, alvenaria: 0, cobertura: 0, acabamentos: 0 };
+    const c: Record<PhaseKey, number> = { fundacao: 0, pilares: 0, lajes: 0, alvenaria: 0, cobertura: 0, instalacoes: 0, acabamentos: 0 };
     meshes.forEach((m) => { c[overrides[m.id] ?? m.phase]++; });
     return c;
   }, [meshes, overrides]);

@@ -14,6 +14,14 @@ const HIGHLIGHT = "#f59e0b";
 export type Classification = { phase: PhaseKey; confidence: number; reason: string };
 
 const NAME_RULES: { rx: RegExp; phase: PhaseKey; reason: string }[] = [
+  // Regras IFC explícitas (antes de qualquer heurística): elementos ambíguos
+  // que nunca devem cair no fallback.
+  { rx: /pile|estaca/i, phase: "fundacao", reason: "ifc:pile→fundação" },
+  {
+    rx: /(fan|duct|damper|airterminal|cable|flowsegment|flowterminal|sanitaryterminal|valve|wiring|mep|hvac)/i,
+    phase: "instalacoes",
+    reason: "ifc:MEP→instalações",
+  },
   { rx: /(found|footing|sapata|fundac|footer|base)/i, phase: "fundacao", reason: "nome→fundação" },
   { rx: /(column|pilar|coluna|post)/i, phase: "pilares", reason: "nome→pilar" },
   { rx: /(slab|floor|laje|deck|piso)/i, phase: "lajes", reason: "nome→laje" },
@@ -289,12 +297,13 @@ export default function UploadedModel({
       mesh.visible = visible;
       const isSel = selected === phase;
       const dim = selected !== null && !isSel;
-      const color = isSel ? HIGHLIGHT : PHASE_COLORS[phase];
+      // Fase seleccionada mantém a cor original; as restantes ficam a 15% de opacidade.
+      const color = PHASE_COLORS[phase];
       const apply = (m: THREE.Material) => {
         const sm = m as THREE.MeshStandardMaterial;
         if (sm.color) sm.color.set(color);
         sm.transparent = dim;
-        sm.opacity = dim ? 0.18 : 1;
+        sm.opacity = dim ? 0.15 : 1;
         sm.needsUpdate = true;
       };
       if (Array.isArray(mesh.material)) mesh.material.forEach(apply);
