@@ -355,9 +355,14 @@ export default function UploadedModel({
     <group rotation-x={rotationX}>
       <primitive
         object={optimized.group}
-        onPointerDown={(e: any) => {
+        onClick={(e: any) => {
+          // Só reage a gestos reais do utilizador — evita "cliques" sintéticos
+          // disparados quando a cena é reconstruída no fim do carregamento.
+          if (e?.nativeEvent && e.nativeEvent.isTrusted === false) return;
+          if (e?.delta != null && e.delta > 5) return; // arrastar a câmara não é clique
           e.stopPropagation();
           const ud = (e.object?.userData as any) || {};
+
           const p = ud.phase as PhaseKey | undefined;
           if (p) onSelect(p);
           // Identidade individual: o vértice atingido conhece o seu expressID.
