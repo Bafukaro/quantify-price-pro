@@ -101,6 +101,7 @@ export default function UploadedModel({
   onSelect,
   onLoaded,
   onSelectElement,
+  onSceneReady,
   highlightElement,
   onError,
   onProgress,
@@ -122,6 +123,8 @@ export default function UploadedModel({
   ) => void;
   /** Chamado quando o clique identifica um elemento IFC individual. */
   onSelectElement?: (elementId: number | null, ifcClass: string | null) => void;
+  /** Raiz da cena optimizada — permite extrair a geometria de um só elemento. */
+  onSceneReady?: (group: THREE.Group | null) => void;
   /** Elemento individual a destacar com caixa de selecção. */
   highlightElement?: IfcElement | null;
   onError?: (msg: string, detail?: string, stage?: string) => void;
@@ -322,8 +325,9 @@ export default function UploadedModel({
   }, [tagged, overrides]);
 
   useEffect(() => {
+    onSceneReady?.(optimized?.group ?? null);
     return () => disposeScene(optimized?.group ?? null);
-  }, [optimized]);
+  }, [optimized]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply colors / visibility based on selected & visible
   useEffect(() => {

@@ -23,7 +23,10 @@ import {
 } from "@/data/store";
 import type { IfcWorkerMetrics, IfcElement } from "@/lib/ifcLoader";
 import { phaseOfClass } from "@/lib/detailedBoq";
-import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle, Download, FileSpreadsheet, Activity, RefreshCw, Crosshair, Search } from "lucide-react";
+import type * as THREE from "three";
+import { extractElement } from "@/lib/isolateElement";
+import ElementViewer from "@/components/three/ElementViewer";
+import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle, Download, FileSpreadsheet, Activity, RefreshCw, Crosshair, Search, X, Maximize2 } from "lucide-react";
 
 const STAGE_LABELS: Record<string, string> = {
   init: "Arranque WASM",
@@ -84,6 +87,9 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
   const [selectedElementId, setSelectedElementId] = useState<number | null>(null);
   const [elemQuery, setElemQuery] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  // Raiz da cena optimizada — necessária para extrair a geometria de um só elemento.
+  const [sceneRoot, setSceneRoot] = useState<THREE.Object3D | null>(null);
+  const [isolateMode, setIsolateMode] = useState(true);
 
   // Ao entrar na tab com um modelo guardado (ou ao trocar de projecto), volta
   // ao estado de loading até o modelo estar visível no canvas — nunca mostra
@@ -171,6 +177,12 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
     () => elementList.find((e) => e.id === selectedElementId) ?? null,
     [elementList, selectedElementId]
   );
+  // Geometria isolada do elemento seleccionado (extraída da malha fundida).
+  const isolated = useMemo(
+    () => (isolateMode ? extractElement(sceneRoot, selectedElementId) : null),
+    [sceneRoot, selectedElementId, isolateMode]
+  );
+  const selectedPhase = selectedElement ? (phaseOfClass(selectedElement.ifcClass) as PhaseKey) : null;
 
   const info = selected ? phaseData[selected] : null;
   const total = info ? info.total : null;
@@ -343,6 +355,7 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                       elementList.find((e) => e.id === selectedElementId) ?? null
                     }
                     onSelectElement={(id) => setSelectedElementId(id)}
+                    onSceneReady={(g) => setSceneRoot(g)}
                     onLoaded={(m, rb, groups, els) => {
                       setProjectModelMeshes(projectId, m, rb, groups);
                       setElementList(els ?? []);
@@ -361,13 +374,14 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                       setLoadState("error");
                     }}
                     onSelect={(p) => {
+                      // Clicar num elemento isola a fase e abre o detalhe do
+                      // elemento — NÃO salta para o Orçamento (isso passou a ser
+                      // uma acção explícita no painel de detalhe).
                       focusPhase(p);
-                      // Nunca navegar para o Orçamento enquanto o modelo ainda
-                      // está a carregar — só em interacção real do utilizador.
-                      if (loadState === "ready") onBoQNavigate?.(p);
                     }}
 
                   />
+
                 ) : (
                   <BuildingModel
                     selected={selected}
@@ -388,6 +402,80 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                 maxDistance={50}
               />
             </Canvas>
+
+            {/* Detalhe do elemento — vista 3D isolada só desse elemento */}
+            {selectedElement && (
+              <div className="absolute bottom-4 left-4 z-20 w-[340px] rounded-xl border border-border bg-background/95 backdrop-blur shadow-lg overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                  <div className="min-w-0">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Elemento isolado
+                    </div>
+                    <div className="font-mono text-xs truncate">
+                      #{selectedElement.id}{" "}
+                      <span className="text-muted-foreground">{selectedElement.ifcClass}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedElementId(null)}
+                    className="p-1 rounded-md hover:bg-muted text-muted-foreground"
+                    title="Fechar"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+
+                {isolated ? (
+                  <ElementViewer
+                    key={selectedElement.id}
+                    geometry={isolated.geometry}
+                    phase={selectedPhase}
+                    height={190}
+                  />
+                ) : (
+                  <div className="h-[190px] grid place-items-center text-[11px] text-muted-foreground px-4 text-center">
+                    Geometria individual indisponível para este elemento — o
+                    destaque amarelo mostra a sua localização no modelo.
+                  </div>
+                )}
+
+                <div className="p-3 space-y-1.5 text-[11px] font-mono">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Dimensões</span>
+                    <span>
+                      {selectedElement.dx.toFixed(2)} × {selectedElement.dy.toFixed(2)} ×{" "}
+                      {selectedElement.dz.toFixed(2)} m
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Volume</span>
+                    <span>{(isolated?.volumeM3 ?? selectedElement.volumeM3).toFixed(3)} m³</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Área</span>
+                    <span>{(isolated?.areaM2 ?? selectedElement.areaM2).toFixed(2)} m²</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Fase</span>
+                    <span>{selectedPhase ? phaseData[selectedPhase]?.label ?? selectedPhase : "—"}</span>
+                  </div>
+                  {isolated && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Triângulos</span>
+                      <span>{isolated.triangles.toLocaleString("pt-PT")}</span>
+                    </div>
+                  )}
+                  {selectedPhase && onBoQNavigate && (
+                    <button
+                      onClick={() => onBoQNavigate(selectedPhase)}
+                      className="mt-1 w-full inline-flex items-center justify-center gap-1.5 rounded-md bg-primary text-primary-foreground px-2 py-1.5 text-[11px] font-medium hover:opacity-90"
+                    >
+                      <Maximize2 className="size-3" /> Ver no Orçamento
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div className="px-4 py-2.5 border-t border-border text-[11px] text-muted-foreground flex items-center gap-4">
             <span className="flex items-center gap-1.5"><Box className="size-3" /> {totalMeta}</span>
