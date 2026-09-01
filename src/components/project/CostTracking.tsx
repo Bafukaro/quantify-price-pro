@@ -4,7 +4,9 @@ import { fmtMT } from "@/data/mock";
 import { useSchedule, realPct } from "@/data/schedule";
 import { useProjectExpenses, addExpense, deleteExpense, type Expense } from "@/data/expenses";
 import type { BoQSource } from "@/lib/boqSource";
-import { phaseLabel } from "@/lib/phaseQuantities";
+import { phaseLabel, PHASES } from "@/lib/phaseQuantities";
+
+const safeLabel = (p: string) => (PHASES.includes(p as PhaseKey) ? phaseLabel(p as PhaseKey) : p);
 import { Plus, Trash2, Wallet, TrendingUp, AlertTriangle } from "lucide-react";
 
 /** Fase do cronograma (rótulo humano) → fases construtivas do orçamento. */
@@ -173,7 +175,7 @@ export default function CostTracking({
               >
                 {boq.order.map((p) => (
                   <option key={p} value={p}>
-                    {phaseLabel(p)}
+                    {safeLabel(p)}
                   </option>
                 ))}
               </select>
@@ -327,7 +329,7 @@ export default function CostTracking({
               {expenses.map((e: Expense) => (
                 <tr key={e.id} className="hover:bg-muted/30">
                   <td className="px-4 py-2.5 font-mono text-xs">{e.date}</td>
-                  <td className="px-4 py-2.5 text-xs">{phaseLabel(e.phase as PhaseKey)}</td>
+                  <td className="px-4 py-2.5 text-xs">{safeLabel(e.phase)}</td>
                   <td className="px-4 py-2.5">{e.description}</td>
                   <td className="px-4 py-2.5 text-xs text-muted-foreground">{e.supplier || "—"}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{e.invoiceRef || "—"}</td>
