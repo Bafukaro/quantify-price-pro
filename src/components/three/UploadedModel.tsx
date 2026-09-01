@@ -101,6 +101,7 @@ export default function UploadedModel({
   onSelect,
   onLoaded,
   onSelectElement,
+  onSceneReady,
   highlightElement,
   onError,
   onProgress,
