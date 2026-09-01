@@ -362,8 +362,11 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                     }}
                     onSelect={(p) => {
                       focusPhase(p);
-                      onBoQNavigate?.(p);
+                      // Nunca navegar para o Orçamento enquanto o modelo ainda
+                      // está a carregar — só em interacção real do utilizador.
+                      if (loadState === "ready") onBoQNavigate?.(p);
                     }}
+
                   />
                 ) : (
                   <BuildingModel
