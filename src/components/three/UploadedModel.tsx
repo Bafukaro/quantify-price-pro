@@ -123,6 +123,8 @@ export default function UploadedModel({
   ) => void;
   /** Chamado quando o clique identifica um elemento IFC individual. */
   onSelectElement?: (elementId: number | null, ifcClass: string | null) => void;
+  /** Raiz da cena optimizada — permite extrair a geometria de um só elemento. */
+  onSceneReady?: (group: THREE.Group | null) => void;
   /** Elemento individual a destacar com caixa de selecção. */
   highlightElement?: IfcElement | null;
   onError?: (msg: string, detail?: string, stage?: string) => void;
