@@ -23,7 +23,10 @@ import {
 } from "@/data/store";
 import type { IfcWorkerMetrics, IfcElement } from "@/lib/ifcLoader";
 import { phaseOfClass } from "@/lib/detailedBoq";
-import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle, Download, FileSpreadsheet, Activity, RefreshCw, Crosshair, Search } from "lucide-react";
+import type * as THREE from "three";
+import { extractElement } from "@/lib/isolateElement";
+import ElementViewer from "@/components/three/ElementViewer";
+import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle, Download, FileSpreadsheet, Activity, RefreshCw, Crosshair, Search, X, Maximize2 } from "lucide-react";
 
 const STAGE_LABELS: Record<string, string> = {
   init: "Arranque WASM",
