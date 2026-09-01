@@ -177,6 +177,12 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
     () => elementList.find((e) => e.id === selectedElementId) ?? null,
     [elementList, selectedElementId]
   );
+  // Geometria isolada do elemento seleccionado (extraída da malha fundida).
+  const isolated = useMemo(
+    () => (isolateMode ? extractElement(sceneRoot, selectedElementId) : null),
+    [sceneRoot, selectedElementId, isolateMode]
+  );
+  const selectedPhase = selectedElement ? (phaseOfClass(selectedElement.ifcClass) as PhaseKey) : null;
 
   const info = selected ? phaseData[selected] : null;
   const total = info ? info.total : null;
