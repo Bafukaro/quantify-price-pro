@@ -18,6 +18,9 @@ export type IfcClassPayload = {
   positions: Float32Array;
   normals: Float32Array;
   indices: Uint32Array;
+  /** expressID do elemento IFC dono de CADA vértice do buffer fundido.
+   *  Permite identificar o pilar/laje exacto num clique sem desfazer o merge. */
+  elementIds: Uint32Array;
   color: [number, number, number, number];
   elementCount: number;
   invalid: number;
@@ -25,6 +28,24 @@ export type IfcClassPayload = {
   areaM2: number;
   triangles: number;
 };
+
+/** Um elemento IFC individual (pilar a pilar, laje a laje). */
+export type IfcElement = {
+  /** expressID do IFC — identificador estável dentro do ficheiro */
+  id: number;
+  ifcClass: string;
+  /** dimensões do bounding box em metros (dy = vertical) */
+  dx: number;
+  dy: number;
+  dz: number;
+  /** centro do bounding box (espaço-mundo, Y-up) — usado para focar a câmara */
+  cx: number;
+  cy: number;
+  cz: number;
+  volumeM3: number;
+  areaM2: number;
+};
+
 
 /**
  * Agrupamento de elementos IFC com dimensões reais (bounding box no espaço-mundo).
