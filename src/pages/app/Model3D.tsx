@@ -21,8 +21,9 @@ import {
   useProjects,
   useProjectRebar,
 } from "@/data/store";
-import type { IfcWorkerMetrics } from "@/lib/ifcLoader";
-import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle, Download, FileSpreadsheet, Activity, RefreshCw } from "lucide-react";
+import type { IfcWorkerMetrics, IfcElement } from "@/lib/ifcLoader";
+import { phaseOfClass } from "@/lib/detailedBoq";
+import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle, Download, FileSpreadsheet, Activity, RefreshCw, Crosshair, Search } from "lucide-react";
 
 const STAGE_LABELS: Record<string, string> = {
   init: "Arranque WASM",
@@ -78,6 +79,10 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
   const [metrics, setMetrics] = useState<IfcWorkerMetrics | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [rotSteps, setRotSteps] = useState(0);
+  // Identificação individual de elementos (expressID por vértice, sem desfazer o merge)
+  const [elementList, setElementList] = useState<IfcElement[]>([]);
+  const [selectedElementId, setSelectedElementId] = useState<number | null>(null);
+  const [elemQuery, setElemQuery] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Ao entrar na tab com um modelo guardado (ou ao trocar de projecto), volta
@@ -130,6 +135,8 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
     setMetrics(null);
     setLoadState("loading");
     setProgress(null);
+    setElementList([]);
+    setSelectedElementId(null);
     const err = await uploadProjectModel(projectId, f);
     if (err) {
       setLoadError(err);
@@ -150,6 +157,20 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
   const hasReal = boq.hasReal;
   const extraction = { elementsTotal: boq.elementsTotal, invalidTotal: boq.invalidTotal };
   const phaseData = boq.sections;
+
+  // Elementos individuais visíveis: filtrados pela fase seleccionada e pesquisa.
+  const phaseElements = useMemo(() => {
+    const q = elemQuery.trim().toLowerCase();
+    return elementList.filter((e) => {
+      if (selected && phaseOfClass(e.ifcClass) !== selected) return false;
+      if (!q) return true;
+      return String(e.id).includes(q) || e.ifcClass.toLowerCase().includes(q);
+    });
+  }, [elementList, selected, elemQuery]);
+  const selectedElement = useMemo(
+    () => elementList.find((e) => e.id === selectedElementId) ?? null,
+    [elementList, selectedElementId]
+  );
 
   const info = selected ? phaseData[selected] : null;
   const total = info ? info.total : null;
@@ -318,8 +339,13 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                     reloadKey={reloadKey}
                     onProgress={(p) => setProgress(p)}
                     onMetrics={(m) => setMetrics(m)}
-                    onLoaded={(m, rb, groups) => {
+                    highlightElement={
+                      elementList.find((e) => e.id === selectedElementId) ?? null
+                    }
+                    onSelectElement={(id) => setSelectedElementId(id)}
+                    onLoaded={(m, rb, groups, els) => {
                       setProjectModelMeshes(projectId, m, rb, groups);
+                      setElementList(els ?? []);
 
                       setProgress(null);
                       if (m.length === 0) {
@@ -552,6 +578,75 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                       );
                     })}
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Elementos individuais — identidade por expressID IFC */}
+          {elementList.length > 0 && (
+            <div className="rounded-xl bg-surface-elevated border border-border shadow-soft p-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground flex items-center gap-1.5">
+                <Crosshair className="size-3" /> Elementos individuais
+              </div>
+              <div className="mt-1 text-[10px] text-muted-foreground">
+                {selected
+                  ? `${phaseElements.length} elementos em ${phaseData[selected].label}`
+                  : `${phaseElements.length} elementos no modelo`}{" "}
+                · clique no 3D ou na lista
+              </div>
+              <div className="mt-2 relative">
+                <Search className="size-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={elemQuery}
+                  onChange={(e) => setElemQuery(e.target.value)}
+                  placeholder="ID ou classe IFC…"
+                  className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-border bg-background"
+                />
+              </div>
+              {selectedElement && (
+                <div className="mt-2 rounded-md border border-accent/40 bg-accent/5 p-2 text-[11px] font-mono">
+                  <div className="flex items-center justify-between">
+                    <span className="text-accent">#{selectedElement.id}</span>
+                    <button
+                      onClick={() => setSelectedElementId(null)}
+                      className="text-[10px] text-muted-foreground hover:text-foreground"
+                    >
+                      limpar
+                    </button>
+                  </div>
+                  <div className="text-muted-foreground">{selectedElement.ifcClass}</div>
+                  <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px]">
+                    <span>
+                      {selectedElement.dx.toFixed(2)} × {selectedElement.dy.toFixed(2)} ×{" "}
+                      {selectedElement.dz.toFixed(2)} m
+                    </span>
+                    <span>{selectedElement.volumeM3.toFixed(3)} m³</span>
+                    <span>{selectedElement.areaM2.toFixed(2)} m²</span>
+                  </div>
+                </div>
+              )}
+              <div className="mt-2 max-h-64 overflow-auto divide-y divide-border">
+                {phaseElements.slice(0, 400).map((e) => (
+                  <button
+                    key={e.id}
+                    onClick={() => setSelectedElementId(e.id === selectedElementId ? null : e.id)}
+                    className={`w-full text-left px-2 py-1.5 text-[11px] font-mono flex items-center justify-between gap-2 ${
+                      e.id === selectedElementId ? "bg-accent/10 text-accent" : "hover:bg-muted/50"
+                    }`}
+                  >
+                    <span className="truncate">
+                      #{e.id} <span className="text-muted-foreground">{e.ifcClass}</span>
+                    </span>
+                    <span className="text-muted-foreground shrink-0">
+                      {e.volumeM3 > 0 ? `${e.volumeM3.toFixed(2)} m³` : `${e.areaM2.toFixed(1)} m²`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {phaseElements.length > 400 && (
+                <div className="mt-1.5 text-[10px] text-muted-foreground">
+                  A mostrar os primeiros 400 de {phaseElements.length} — refine com a pesquisa.
                 </div>
               )}
             </div>
