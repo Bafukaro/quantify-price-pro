@@ -325,8 +325,9 @@ export default function UploadedModel({
   }, [tagged, overrides]);
 
   useEffect(() => {
+    onSceneReady?.(optimized?.group ?? null);
     return () => disposeScene(optimized?.group ?? null);
-  }, [optimized]);
+  }, [optimized]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply colors / visibility based on selected & visible
   useEffect(() => {
