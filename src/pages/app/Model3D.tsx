@@ -355,6 +355,7 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                       elementList.find((e) => e.id === selectedElementId) ?? null
                     }
                     onSelectElement={(id) => setSelectedElementId(id)}
+                    onSceneReady={(g) => setSceneRoot(g)}
                     onLoaded={(m, rb, groups, els) => {
                       setProjectModelMeshes(projectId, m, rb, groups);
                       setElementList(els ?? []);
@@ -373,13 +374,14 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                       setLoadState("error");
                     }}
                     onSelect={(p) => {
+                      // Clicar num elemento isola a fase e abre o detalhe do
+                      // elemento — NÃO salta para o Orçamento (isso passou a ser
+                      // uma acção explícita no painel de detalhe).
                       focusPhase(p);
-                      // Nunca navegar para o Orçamento enquanto o modelo ainda
-                      // está a carregar — só em interacção real do utilizador.
-                      if (loadState === "ready") onBoQNavigate?.(p);
                     }}
 
                   />
+
                 ) : (
                   <BuildingModel
                     selected={selected}
