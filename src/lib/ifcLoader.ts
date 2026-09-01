@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import type { RebarTakeoff } from "./rebar";
-import type { ElementGroup, IfcClassPayload, IfcWorkerMetrics } from "@/workers/ifcWorker";
+import type { ElementGroup, IfcElement, IfcClassPayload, IfcWorkerMetrics } from "@/workers/ifcWorker";
 
 export type IfcProgress = { stage: "download" | "parse" | "geometry" | "merge"; elements: number };
-export type { IfcWorkerMetrics, ElementGroup };
+export type { IfcWorkerMetrics, ElementGroup, IfcElement };
 
 /** Erro do pipeline IFC com causa legível para o ecrã de erro. */
 export class IfcLoadError extends Error {
@@ -55,6 +55,7 @@ export async function loadIFC(
       classes: IfcClassPayload[];
       rebar: RebarTakeoff | null;
       elementGroups?: ElementGroup[];
+      elementList?: IfcElement[];
       metrics?: IfcWorkerMetrics;
     }>(
       (resolve, reject) => {
@@ -117,6 +118,8 @@ export async function loadIFC(
       mesh.frustumCulled = true;
       mesh.userData = {
         ifcClass: c.ifcClass,
+        // expressID por vértice: identidade individual sem desfazer o merge.
+        elementIds: c.elementIds,
         elementCount: c.elementCount,
         invalidElements: c.invalid,
         // Quantidades reais já calculadas no worker (unidades do ficheiro).
@@ -137,6 +140,7 @@ export async function loadIFC(
       source: "ifc",
       rebar: payload.rebar,
       elementGroups: payload.elementGroups ?? [],
+      elementList: payload.elementList ?? [],
       upFixed: true,
       metrics: payload.metrics ?? null,
     };

@@ -89,7 +89,12 @@ export function buildOptimizedScene(
         clone.frustumCulled = true;
         clone.castShadow = false;
         clone.receiveShadow = false;
-        clone.userData = { phase, ifcClass: (m.userData as any).ifcClass, sharedGeometry: true };
+        clone.userData = {
+          phase,
+          ifcClass: (m.userData as any).ifcClass,
+          elementIds: (m.userData as any).elementIds,
+          sharedGeometry: true,
+        };
         clone.name = `${phase}__${(m.userData as any).ifcClass}`;
         group.add(clone);
         draws += 1;

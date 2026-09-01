@@ -18,6 +18,9 @@ export type IfcClassPayload = {
   positions: Float32Array;
   normals: Float32Array;
   indices: Uint32Array;
+  /** expressID do elemento IFC dono de CADA vértice do buffer fundido.
+   *  Permite identificar o pilar/laje exacto num clique sem desfazer o merge. */
+  elementIds: Uint32Array;
   color: [number, number, number, number];
   elementCount: number;
   invalid: number;
@@ -25,6 +28,24 @@ export type IfcClassPayload = {
   areaM2: number;
   triangles: number;
 };
+
+/** Um elemento IFC individual (pilar a pilar, laje a laje). */
+export type IfcElement = {
+  /** expressID do IFC — identificador estável dentro do ficheiro */
+  id: number;
+  ifcClass: string;
+  /** dimensões do bounding box em metros (dy = vertical) */
+  dx: number;
+  dy: number;
+  dz: number;
+  /** centro do bounding box (espaço-mundo, Y-up) — usado para focar a câmara */
+  cx: number;
+  cy: number;
+  cz: number;
+  volumeM3: number;
+  areaM2: number;
+};
+
 
 /**
  * Agrupamento de elementos IFC com dimensões reais (bounding box no espaço-mundo).
@@ -63,6 +84,8 @@ type Bucket = {
   posChunks: Float32Array[];
   normChunks: Float32Array[];
   idxChunks: Uint32Array[];
+  /** expressID por vértice, alinhado com posChunks */
+  idChunks: Uint32Array[];
   vertexTotal: number;
   indexTotal: number;
   color: [number, number, number, number];
@@ -201,7 +224,7 @@ async function run(url: string) {
       if (!bucket) {
         const c = placed.color;
         bucket = {
-          posChunks: [], normChunks: [], idxChunks: [],
+          posChunks: [], normChunks: [], idxChunks: [], idChunks: [],
           vertexTotal: 0, indexTotal: 0,
           color: [c.x, c.y, c.z, c.w],
           elements: new Set<number>(),
@@ -269,9 +292,12 @@ async function run(url: string) {
         const offset = bucket.vertexTotal;
         const idx = new Uint32Array(rawIdx.length);
         for (let k = 0; k < rawIdx.length; k++) idx[k] = rawIdx[k] + offset;
+        const ids = new Uint32Array(vertexCount);
+        ids.fill(expressID);
         bucket.posChunks.push(positions);
         bucket.normChunks.push(normals);
         bucket.idxChunks.push(idx);
+        bucket.idChunks.push(ids);
         bucket.vertexTotal += vertexCount;
         bucket.indexTotal += idx.length;
       }
@@ -307,22 +333,25 @@ async function run(url: string) {
     const positions = new Float32Array(b.vertexTotal * 3);
     const normals = new Float32Array(b.vertexTotal * 3);
     const indices = new Uint32Array(b.indexTotal);
-    let po = 0, io = 0;
+    const elementIds = new Uint32Array(b.vertexTotal);
+    let po = 0, io = 0, vo = 0;
     for (let i = 0; i < b.posChunks.length; i++) {
       positions.set(b.posChunks[i], po);
       normals.set(b.normChunks[i], po);
       po += b.posChunks[i].length;
       indices.set(b.idxChunks[i], io);
       io += b.idxChunks[i].length;
+      elementIds.set(b.idChunks[i], vo);
+      vo += b.idChunks[i].length;
     }
-    b.posChunks.length = 0; b.normChunks.length = 0; b.idxChunks.length = 0;
+    b.posChunks.length = 0; b.normChunks.length = 0; b.idxChunks.length = 0; b.idChunks.length = 0;
     vertices += b.vertexTotal;
     triangles += b.triangles;
     invalid += b.invalid;
-    transferBytes += positions.byteLength + normals.byteLength + indices.byteLength;
+    transferBytes += positions.byteLength + normals.byteLength + indices.byteLength + elementIds.byteLength;
     classes.push({
       ifcClass,
-      positions, normals, indices,
+      positions, normals, indices, elementIds,
       color: b.color,
       elementCount: b.elements.size,
       invalid: b.invalid,
@@ -330,8 +359,27 @@ async function run(url: string) {
       areaM2: b.areaM2,
       triangles: b.triangles,
     });
-    transfer.push(positions.buffer, normals.buffer, indices.buffer);
+    transfer.push(positions.buffer, normals.buffer, indices.buffer, elementIds.buffer);
   });
+
+  // ---- Lista de elementos INDIVIDUAIS (pilar a pilar, laje a laje) ----
+  const elementList: IfcElement[] = [];
+  elems.forEach((e, id) => {
+    const dx = Math.max(0, e.maxX - e.minX);
+    const dy = Math.max(0, e.maxY - e.minY);
+    const dz = Math.max(0, e.maxZ - e.minZ);
+    elementList.push({
+      id,
+      ifcClass: e.ifcClass,
+      dx: +dx.toFixed(3), dy: +dy.toFixed(3), dz: +dz.toFixed(3),
+      cx: +((e.minX + e.maxX) / 2).toFixed(3),
+      cy: +((e.minY + e.maxY) / 2).toFixed(3),
+      cz: +((e.minZ + e.maxZ) / 2).toFixed(3),
+      volumeM3: +e.volumeM3.toFixed(4),
+      areaM2: +e.areaM2.toFixed(3),
+    });
+  });
+  elementList.sort((a, b) => a.ifcClass.localeCompare(b.ifcClass) || a.id - b.id);
 
   // ---- Agrupamento por classe + dimensões (BoQ detalhado) ----
   const r5 = (v: number) => Math.round(v * 20) / 20; // arredondar a 5 cm
@@ -406,7 +454,7 @@ async function run(url: string) {
     stages,
     totalMs,
   };
-  post({ type: "result", classes, rebar, elementGroups, elements: processed, metrics }, transfer);
+  post({ type: "result", classes, rebar, elementGroups, elementList, elements: processed, metrics }, transfer);
 
 }
 
