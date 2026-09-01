@@ -29,13 +29,15 @@ import { buildDetailedBoQ, type DetailedPhase } from "@/lib/detailedBoq";
 import type { Project as ProjectRecord } from "@/data/projects";
 import Model3D from "@/pages/app/Model3D";
 import Cronograma from "@/components/schedule/Cronograma";
+import CostTracking from "@/components/project/CostTracking";
 
-type TabKey = "resumo" | "vista3d" | "calculos" | "orcamento" | "cronograma" | "auditlog" | "relatorio";
+type TabKey = "resumo" | "vista3d" | "calculos" | "orcamento" | "custos" | "cronograma" | "auditlog" | "relatorio";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "resumo", label: "Resumo" },
   { key: "vista3d", label: "Vista 3D" },
   { key: "calculos", label: "Cálculos" },
   { key: "orcamento", label: "Orçamento" },
+  { key: "custos", label: "Custos reais" },
   { key: "cronograma", label: "Cronograma" },
   { key: "auditlog", label: "Audit Log" },
   { key: "relatorio", label: "Relatório" },
@@ -141,6 +143,7 @@ export default function Project() {
       )}
       {active === "calculos" && <CalculosView />}
       {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} highlight={boqHighlight} />}
+      {active === "custos" && <CostTracking projectId={project.id} boq={boq} />}
       {active === "cronograma" && <CronogramaView project={project} />}
       {active === "auditlog" && <AuditLogView projectName={project.name} />}
       {active === "relatorio" && <RelatorioView project={project} boq={boq} total={total} ivaPct={ivaPct} contPct={contPct} />}
