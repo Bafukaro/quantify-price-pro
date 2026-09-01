@@ -87,6 +87,9 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
   const [selectedElementId, setSelectedElementId] = useState<number | null>(null);
   const [elemQuery, setElemQuery] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  // Raiz da cena optimizada — necessária para extrair a geometria de um só elemento.
+  const [sceneRoot, setSceneRoot] = useState<THREE.Object3D | null>(null);
+  const [isolateMode, setIsolateMode] = useState(true);
 
   // Ao entrar na tab com um modelo guardado (ou ao trocar de projecto), volta
   // ao estado de loading até o modelo estar visível no canvas — nunca mostra
