@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
-import { loadIFC, IfcLoadError, type IfcProgress, type IfcWorkerMetrics, type ElementGroup } from "@/lib/ifcLoader";
+import { loadIFC, IfcLoadError, type IfcProgress, type IfcWorkerMetrics, type ElementGroup, type IfcElement } from "@/lib/ifcLoader";
 import { computeMeshQuantity } from "@/lib/meshQuantities";
 import { buildOptimizedScene, disposeScene } from "@/lib/optimizeScene";
 import type { RebarTakeoff } from "@/lib/rebar";
@@ -100,6 +100,8 @@ export default function UploadedModel({
   overrides,
   onSelect,
   onLoaded,
+  onSelectElement,
+  highlightElement,
   onError,
   onProgress,
   onMetrics,
@@ -112,7 +114,16 @@ export default function UploadedModel({
   visiblePhases: Set<PhaseKey>;
   overrides: Record<string, PhaseKey>;
   onSelect: (p: PhaseKey) => void;
-  onLoaded?: (meshes: MeshInfo[], rebar: RebarTakeoff | null, elementGroups: ElementGroup[]) => void;
+  onLoaded?: (
+    meshes: MeshInfo[],
+    rebar: RebarTakeoff | null,
+    elementGroups: ElementGroup[],
+    elementList: IfcElement[]
+  ) => void;
+  /** Chamado quando o clique identifica um elemento IFC individual. */
+  onSelectElement?: (elementId: number | null, ifcClass: string | null) => void;
+  /** Elemento individual a destacar com caixa de selecção. */
+  highlightElement?: IfcElement | null;
   onError?: (msg: string, detail?: string, stage?: string) => void;
   onProgress?: (p: IfcProgress) => void;
   onMetrics?: (m: IfcWorkerMetrics) => void;
@@ -202,12 +213,20 @@ export default function UploadedModel({
   }, [root]);
 
   // Tag each mesh with a phase + center & scale model
-  const { tagged, meshes, rebar, elementGroups } = useMemo(() => {
+  const { tagged, meshes, rebar, elementGroups, elementList, fit } = useMemo(() => {
     const meshes: MeshInfo[] = [];
     const rebar = ((root?.userData as any)?.rebar as RebarTakeoff | null) ?? null;
     const elementGroups = ((root?.userData as any)?.elementGroups as ElementGroup[]) ?? [];
+    const elementList = ((root?.userData as any)?.elementList as IfcElement[]) ?? [];
     if (!root)
-      return { tagged: null, meshes, rebar: null as RebarTakeoff | null, elementGroups: [] as ElementGroup[] };
+      return {
+        tagged: null,
+        meshes,
+        rebar: null as RebarTakeoff | null,
+        elementGroups: [] as ElementGroup[],
+        elementList: [] as IfcElement[],
+        fit: null as { scale: number; offset: THREE.Vector3 } | null,
+      };
 
     // 1) Quantidades REAIS — calculadas nas unidades originais do ficheiro,
     //    antes de qualquer re-escala de visualização.
@@ -232,6 +251,7 @@ export default function UploadedModel({
     root.position.sub(center.multiplyScalar(scale));
     // shift up so model sits on ground
     root.position.y += (size.y * scale) / 2;
+    const fit = { scale, offset: root.position.clone() };
     root.scale.setScalar(scale);
     // Recompute box in world after transforms for geometry heuristics
     root.updateMatrixWorld(true);
@@ -262,12 +282,32 @@ export default function UploadedModel({
         i++;
       }
     });
-    return { tagged: root, meshes, rebar, elementGroups };
+    return { tagged: root, meshes, rebar, elementGroups, elementList, fit };
   }, [root]);
 
   useEffect(() => {
-    if (tagged && onLoaded) onLoaded(meshes, rebar, elementGroups);
+    if (tagged && onLoaded) onLoaded(meshes, rebar, elementGroups, elementList);
   }, [tagged]); // eslint-disable-line
+
+  // Caixa de selecção do elemento individual (mesma transformação de ajuste
+  // aplicada ao modelo, para coincidir com a geometria fundida no ecrã).
+  const highlightBox = useMemo(() => {
+    if (!highlightElement || !fit) return null;
+    const s = fit.scale;
+    const pad = 0.02;
+    return {
+      position: [
+        highlightElement.cx * s + fit.offset.x,
+        highlightElement.cy * s + fit.offset.y,
+        highlightElement.cz * s + fit.offset.z,
+      ] as [number, number, number],
+      args: [
+        Math.max(highlightElement.dx * s, 0.02) + pad,
+        Math.max(highlightElement.dy * s, 0.02) + pad,
+        Math.max(highlightElement.dz * s, 0.02) + pad,
+      ] as [number, number, number],
+    };
+  }, [highlightElement, fit]);
 
   // === OPTIMIZAÇÃO DE RENDER ===
   // Uma malha merged (ou InstancedMesh) por FASE em vez de um mesh por elemento.
@@ -312,15 +352,32 @@ export default function UploadedModel({
   if (!optimized) return null;
 
   return (
-    <primitive
-      object={optimized.group}
-      rotation-x={rotationX}
-      onPointerDown={(e: any) => {
-        e.stopPropagation();
-        const ud = (e.object?.userData as any) || {};
-        const p = ud.phase as PhaseKey | undefined;
-        if (p) onSelect(p);
-      }}
-    />
+    <group rotation-x={rotationX}>
+      <primitive
+        object={optimized.group}
+        onPointerDown={(e: any) => {
+          e.stopPropagation();
+          const ud = (e.object?.userData as any) || {};
+          const p = ud.phase as PhaseKey | undefined;
+          if (p) onSelect(p);
+          // Identidade individual: o vértice atingido conhece o seu expressID.
+          const ids = ud.elementIds as Uint32Array | undefined;
+          const vi = e.face?.a;
+          if (onSelectElement) {
+            if (ids && typeof vi === "number" && vi < ids.length) {
+              onSelectElement(ids[vi], (ud.ifcClass as string) ?? null);
+            } else {
+              onSelectElement(null, (ud.ifcClass as string) ?? null);
+            }
+          }
+        }}
+      />
+      {highlightBox && (
+        <mesh position={highlightBox.position} raycast={() => null}>
+          <boxGeometry args={highlightBox.args} />
+          <meshBasicMaterial color="#facc15" wireframe transparent opacity={0.95} />
+        </mesh>
+      )}
+    </group>
   );
 }
