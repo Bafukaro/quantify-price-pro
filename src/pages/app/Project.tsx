@@ -18,6 +18,7 @@ import {
   Check,
   X,
   Store,
+  Box,
 } from "lucide-react";
 import { getStats, setPriceCity, materials, findMaterialFuzzy, RISK_LABEL, RISK_COLOR } from "@/data/priceDb";
 import type { PhaseKey } from "@/components/three/BuildingModel";
