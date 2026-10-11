@@ -26,6 +26,8 @@ import { phaseOfClass } from "@/lib/detailedBoq";
 import type * as THREE from "three";
 import { extractElement } from "@/lib/isolateElement";
 import ElementViewer from "@/components/three/ElementViewer";
+import { elementCost } from "@/lib/elementCost";
+import { useProjectPriceOverrides } from "@/data/projects";
 import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle, Download, FileSpreadsheet, Activity, RefreshCw, Crosshair, Search, X, Maximize2 } from "lucide-react";
 
 const STAGE_LABELS: Record<string, string> = {
@@ -55,9 +57,11 @@ type Model3DProps = {
   projectId?: string;
   /** Clique num elemento 3D → navegar para a secção do Orçamento dessa fase. */
   onBoQNavigate?: (phase: PhaseKey) => void;
+  /** Abrir já isolado numa fase (vindo do Orçamento). */
+  initialPhase?: { phase: PhaseKey; ts: number } | null;
 };
 
-export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Model3DProps = {}) {
+export default function Model3D({ projectId: projectIdProp, onBoQNavigate, initialPhase }: Model3DProps = {}) {
   const [params] = useSearchParams();
   const projects = useProjects();
   const projectId =
@@ -70,6 +74,7 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
   const overrides = useProjectOverrides(projectId) as Record<string, PhaseKey>;
   const meshes = useProjectMeshes(projectId) as MeshInfo[];
   const rebar = useProjectRebar(projectId);
+  const priceOverrides = useProjectPriceOverrides(projectId);
 
   const [selected, setSelected] = useState<PhaseKey | null>(null);
   const [visible, setVisible] = useState<Set<Phase3D>>(new Set(ALL));
@@ -126,6 +131,16 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
     }
   };
 
+  /** Isolamento de fase: só a geometria dessa fase fica visível (sem as outras). */
+  const isolatePhase = (p: Phase3D) => {
+    setSelected(p);
+    setVisible(new Set([p]));
+    setSelectedElementId(null);
+  };
+  useEffect(() => {
+    if (initialPhase) isolatePhase(initialPhase.phase);
+  }, [initialPhase?.ts]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const reset = () => {
     setSelected(null);
     setVisible(new Set(ALL));
@@ -157,8 +172,8 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
 
   // === Fonte única: quantidades reais extraídas da malha (ou caso de estudo) ===
   const boq = useMemo(
-    () => buildBoQSource({ location: project?.location, meshes, overrides, rebar }),
-    [project?.location, meshes, overrides, rebar]
+    () => buildBoQSource({ location: project?.location, meshes, overrides, rebar, priceOverrides }),
+    [project?.location, meshes, overrides, rebar, priceOverrides]
   );
   const hasReal = boq.hasReal;
   const extraction = { elementsTotal: boq.elementsTotal, invalidTotal: boq.invalidTotal };
@@ -183,6 +198,20 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
     [sceneRoot, selectedElementId, isolateMode]
   );
   const selectedPhase = selectedElement ? (phaseOfClass(selectedElement.ifcClass) as PhaseKey) : null;
+  const selectedCost = selectedElement && selectedPhase ? elementCost(phaseData[selectedPhase], selectedElement) : null;
+  // Painel direito: expressIDs agrupados por fase (máx. 400 linhas renderizadas).
+  const elementsByPhase = useMemo(() => {
+    const m = new Map<PhaseKey, IfcElement[]>();
+    let n = 0;
+    for (const e of phaseElements) {
+      if (n >= 400) break;
+      const p = (phaseOfClass(e.ifcClass) as PhaseKey) || "acabamentos";
+      const l = m.get(p);
+      if (l) l.push(e); else m.set(p, [e]);
+      n++;
+    }
+    return ALL.filter((p) => m.has(p)).map((p) => [p, m.get(p)!] as [PhaseKey, IfcElement[]]);
+  }, [phaseElements]);
 
   const info = selected ? phaseData[selected] : null;
   const total = info ? info.total : null;
@@ -465,6 +494,26 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                       <span>{isolated.triangles.toLocaleString("pt-PT")}</span>
                     </div>
                   )}
+                  {selectedCost && selectedCost.lines.length > 0 && (
+                    <div className="mt-1 border-t border-border pt-1.5">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                        Custo deste elemento ({(selectedCost.share * 100).toFixed(2)}% da fase)
+                      </div>
+                      <div className="max-h-28 overflow-auto space-y-0.5">
+                        {selectedCost.lines.map((l) => (
+                          <div key={l.item} className="grid grid-cols-[1fr_auto_auto] gap-x-2 text-[10px]">
+                            <span className="truncate" title={l.desc}>{l.item} {l.desc}</span>
+                            <span className="text-muted-foreground">{fmtMT(l.preco)}/{l.un}</span>
+                            <span className="text-right">{fmtMT(l.cost)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex justify-between mt-1 font-medium">
+                        <span>Total</span>
+                        <span className="text-accent">{fmtMT(selectedCost.total)}</span>
+                      </div>
+                    </div>
+                  )}
                   {selectedPhase && onBoQNavigate && (
                     <button
                       onClick={() => onBoQNavigate(selectedPhase)}
@@ -545,6 +594,13 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                           </div>
                         )}
                       </span>
+                    </button>
+                    <button
+                      onClick={() => isolatePhase(p)}
+                      className="p-2 rounded hover:bg-muted text-muted-foreground"
+                      title="Isolar só esta fase"
+                    >
+                      <Crosshair className="size-3.5" />
                     </button>
                     <button
                       onClick={() => togglePhase(p)}
@@ -717,22 +773,36 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                   </div>
                 </div>
               )}
-              <div className="mt-2 max-h-64 overflow-auto divide-y divide-border">
-                {phaseElements.slice(0, 400).map((e) => (
-                  <button
-                    key={e.id}
-                    onClick={() => setSelectedElementId(e.id === selectedElementId ? null : e.id)}
-                    className={`w-full text-left px-2 py-1.5 text-[11px] font-mono flex items-center justify-between gap-2 ${
-                      e.id === selectedElementId ? "bg-accent/10 text-accent" : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <span className="truncate">
-                      #{e.id} <span className="text-muted-foreground">{e.ifcClass}</span>
-                    </span>
-                    <span className="text-muted-foreground shrink-0">
-                      {e.volumeM3 > 0 ? `${e.volumeM3.toFixed(2)} m³` : `${e.areaM2.toFixed(1)} m²`}
-                    </span>
-                  </button>
+              <div className="mt-2 max-h-[28rem] overflow-auto">
+                {elementsByPhase.map(([ph, list]) => (
+                  <div key={ph} className="mb-1">
+                    <div className="sticky top-0 z-10 bg-surface-elevated flex items-center gap-1.5 px-1 py-1 text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                      <span className="size-2 rounded-sm" style={{ background: PHASE_COLORS[ph] }} />
+                      <span className="flex-1">{phaseData[ph]?.label ?? ph}</span>
+                      <span className="font-mono normal-case">{list.length} el.</span>
+                    </div>
+                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-2 px-2 pt-1 text-[9px] uppercase text-muted-foreground">
+                      <span>expressID</span><span className="text-right">m³</span><span className="text-right">m²</span><span className="text-right">custo</span>
+                    </div>
+                    {list.map((e) => {
+                      const c = elementCost(phaseData[ph], e);
+                      return (
+                        <button
+                          key={e.id}
+                          onClick={() => setSelectedElementId(e.id === selectedElementId ? null : e.id)}
+                          className={`w-full text-left px-2 py-1 text-[11px] font-mono grid grid-cols-[1fr_auto_auto_auto] gap-x-2 items-center ${
+                            e.id === selectedElementId ? "bg-accent/10 text-accent" : "hover:bg-muted/50"
+                          }`}
+                          title={e.ifcClass}
+                        >
+                          <span className="truncate">#{e.id}</span>
+                          <span className="text-right">{e.volumeM3.toFixed(2)}</span>
+                          <span className="text-right">{e.areaM2.toFixed(1)}</span>
+                          <span className="text-right text-muted-foreground">{c ? fmtMT(c.total) : "—"}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 ))}
               </div>
               {phaseElements.length > 400 && (

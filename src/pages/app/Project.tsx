@@ -18,6 +18,7 @@ import {
   Check,
   X,
   Store,
+  Box,
 } from "lucide-react";
 import { getStats, setPriceCity, materials, findMaterialFuzzy, RISK_LABEL, RISK_COLOR } from "@/data/priceDb";
 import type { PhaseKey } from "@/components/three/BuildingModel";
@@ -56,6 +57,7 @@ export default function Project() {
   setPriceCity(project?.location);
   const [active, setActive] = useState<TabKey>("resumo");
   // Clique num elemento 3D → destacar a secção correspondente no Orçamento.
+  const [phase3D, setPhase3D] = useState<{ phase: PhaseKey; ts: number } | null>(null);
   const [boqHighlight, setBoqHighlight] = useState<{ phase: PhaseKey; ts: number } | null>(null);
   useEffect(() => {
     const t = params.get("tab") as TabKey | null;
@@ -135,6 +137,7 @@ export default function Project() {
       {active === "vista3d" && (
         <Model3D
           projectId={project.id}
+          initialPhase={phase3D}
           onBoQNavigate={(phase) => {
             setBoqHighlight({ phase, ts: Date.now() });
             setActive("orcamento");
@@ -142,7 +145,7 @@ export default function Project() {
         />
       )}
       {active === "calculos" && <CalculosView />}
-      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} highlight={boqHighlight} />}
+      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} highlight={boqHighlight} onOpen3D={(phase) => { setPhase3D({ phase, ts: Date.now() }); setActive("vista3d"); }} />}
       {active === "custos" && <CostTracking projectId={project.id} boq={boq} />}
       {active === "cronograma" && <CronogramaView project={project} />}
       {active === "auditlog" && <AuditLogView projectName={project.name} />}
@@ -408,7 +411,9 @@ function OrcamentoView({
   boq,
   priceOverrides,
   highlight,
+  onOpen3D,
 }: {
+  onOpen3D?: (phase: PhaseKey) => void;
   ivaPct: number;
   contPct: number;
   projectName: string;
@@ -545,7 +550,18 @@ function OrcamentoView({
                     : sec.desc}
                 </div>
               </div>
-              <div className="font-mono text-sm">{fmtMT(sec.total)}</div>
+              <div className="flex items-center gap-3">
+                {onOpen3D && boq.hasReal && (
+                  <button
+                    onClick={() => onOpen3D(key)}
+                    className="inline-flex items-center gap-1.5 border border-border px-2.5 py-1 rounded-md text-[11px] hover:bg-muted"
+                    title="Abrir a Vista 3D só com esta fase"
+                  >
+                    <Box className="size-3.5" /> Ver em 3D
+                  </button>
+                )}
+                <div className="font-mono text-sm">{fmtMT(sec.total)}</div>
+              </div>
             </div>
             {!boq.rebar && sec.lines.some((l) => l.isSteel) && !steelDismissed.has(key) && (
               <div className="flex items-start gap-3 px-5 py-3 bg-warning/10 border-b border-warning/30">
