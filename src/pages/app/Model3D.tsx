@@ -26,6 +26,8 @@ import { phaseOfClass } from "@/lib/detailedBoq";
 import type * as THREE from "three";
 import { extractElement } from "@/lib/isolateElement";
 import ElementViewer from "@/components/three/ElementViewer";
+import { elementCost } from "@/lib/elementCost";
+import { useProjectPriceOverrides } from "@/data/projects";
 import { Box, Eye, EyeOff, RotateCcw, Layers, Upload, AlertTriangle, Download, FileSpreadsheet, Activity, RefreshCw, Crosshair, Search, X, Maximize2 } from "lucide-react";
 
 const STAGE_LABELS: Record<string, string> = {
@@ -55,9 +57,11 @@ type Model3DProps = {
   projectId?: string;
   /** Clique num elemento 3D → navegar para a secção do Orçamento dessa fase. */
   onBoQNavigate?: (phase: PhaseKey) => void;
+  /** Abrir já isolado numa fase (vindo do Orçamento). */
+  initialPhase?: { phase: PhaseKey; ts: number } | null;
 };
 
-export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Model3DProps = {}) {
+export default function Model3D({ projectId: projectIdProp, onBoQNavigate, initialPhase }: Model3DProps = {}) {
   const [params] = useSearchParams();
   const projects = useProjects();
   const projectId =
@@ -126,6 +130,16 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
     }
   };
 
+  /** Isolamento de fase: só a geometria dessa fase fica visível (sem as outras). */
+  const isolatePhase = (p: Phase3D) => {
+    setSelected(p);
+    setVisible(new Set([p]));
+    setSelectedElementId(null);
+  };
+  useEffect(() => {
+    if (initialPhase) isolatePhase(initialPhase.phase);
+  }, [initialPhase?.ts]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const reset = () => {
     setSelected(null);
     setVisible(new Set(ALL));
@@ -183,6 +197,20 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
     [sceneRoot, selectedElementId, isolateMode]
   );
   const selectedPhase = selectedElement ? (phaseOfClass(selectedElement.ifcClass) as PhaseKey) : null;
+  const selectedCost = selectedElement && selectedPhase ? elementCost(phaseData[selectedPhase], selectedElement) : null;
+  // Painel direito: expressIDs agrupados por fase (máx. 400 linhas renderizadas).
+  const elementsByPhase = useMemo(() => {
+    const m = new Map<PhaseKey, IfcElement[]>();
+    let n = 0;
+    for (const e of phaseElements) {
+      if (n >= 400) break;
+      const p = (phaseOfClass(e.ifcClass) as PhaseKey) || "acabamentos";
+      const l = m.get(p);
+      if (l) l.push(e); else m.set(p, [e]);
+      n++;
+    }
+    return ALL.filter((p) => m.has(p)).map((p) => [p, m.get(p)!] as [PhaseKey, IfcElement[]]);
+  }, [phaseElements]);
 
   const info = selected ? phaseData[selected] : null;
   const total = info ? info.total : null;
@@ -463,6 +491,26 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Triângulos</span>
                       <span>{isolated.triangles.toLocaleString("pt-PT")}</span>
+                    </div>
+                  )}
+                  {selectedCost && selectedCost.lines.length > 0 && (
+                    <div className="mt-1 border-t border-border pt-1.5">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                        Custo deste elemento ({(selectedCost.share * 100).toFixed(2)}% da fase)
+                      </div>
+                      <div className="max-h-28 overflow-auto space-y-0.5">
+                        {selectedCost.lines.map((l) => (
+                          <div key={l.item} className="grid grid-cols-[1fr_auto_auto] gap-x-2 text-[10px]">
+                            <span className="truncate" title={l.desc}>{l.item} {l.desc}</span>
+                            <span className="text-muted-foreground">{fmtMT(l.preco)}/{l.un}</span>
+                            <span className="text-right">{fmtMT(l.cost)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex justify-between mt-1 font-medium">
+                        <span>Total</span>
+                        <span className="text-accent">{fmtMT(selectedCost.total)}</span>
+                      </div>
                     </div>
                   )}
                   {selectedPhase && onBoQNavigate && (
