@@ -74,6 +74,7 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate, initi
   const overrides = useProjectOverrides(projectId) as Record<string, PhaseKey>;
   const meshes = useProjectMeshes(projectId) as MeshInfo[];
   const rebar = useProjectRebar(projectId);
+  const priceOverrides = useProjectPriceOverrides(projectId);
 
   const [selected, setSelected] = useState<PhaseKey | null>(null);
   const [visible, setVisible] = useState<Set<Phase3D>>(new Set(ALL));
@@ -171,8 +172,8 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate, initi
 
   // === Fonte única: quantidades reais extraídas da malha (ou caso de estudo) ===
   const boq = useMemo(
-    () => buildBoQSource({ location: project?.location, meshes, overrides, rebar }),
-    [project?.location, meshes, overrides, rebar]
+    () => buildBoQSource({ location: project?.location, meshes, overrides, rebar, priceOverrides }),
+    [project?.location, meshes, overrides, rebar, priceOverrides]
   );
   const hasReal = boq.hasReal;
   const extraction = { elementsTotal: boq.elementsTotal, invalidTotal: boq.invalidTotal };
@@ -593,6 +594,13 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate, initi
                           </div>
                         )}
                       </span>
+                    </button>
+                    <button
+                      onClick={() => isolatePhase(p)}
+                      className="p-2 rounded hover:bg-muted text-muted-foreground"
+                      title="Isolar só esta fase"
+                    >
+                      <Crosshair className="size-3.5" />
                     </button>
                     <button
                       onClick={() => togglePhase(p)}
