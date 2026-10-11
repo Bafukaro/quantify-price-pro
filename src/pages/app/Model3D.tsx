@@ -717,22 +717,36 @@ export default function Model3D({ projectId: projectIdProp, onBoQNavigate }: Mod
                   </div>
                 </div>
               )}
-              <div className="mt-2 max-h-64 overflow-auto divide-y divide-border">
-                {phaseElements.slice(0, 400).map((e) => (
-                  <button
-                    key={e.id}
-                    onClick={() => setSelectedElementId(e.id === selectedElementId ? null : e.id)}
-                    className={`w-full text-left px-2 py-1.5 text-[11px] font-mono flex items-center justify-between gap-2 ${
-                      e.id === selectedElementId ? "bg-accent/10 text-accent" : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <span className="truncate">
-                      #{e.id} <span className="text-muted-foreground">{e.ifcClass}</span>
-                    </span>
-                    <span className="text-muted-foreground shrink-0">
-                      {e.volumeM3 > 0 ? `${e.volumeM3.toFixed(2)} m³` : `${e.areaM2.toFixed(1)} m²`}
-                    </span>
-                  </button>
+              <div className="mt-2 max-h-[28rem] overflow-auto">
+                {elementsByPhase.map(([ph, list]) => (
+                  <div key={ph} className="mb-1">
+                    <div className="sticky top-0 z-10 bg-surface-elevated flex items-center gap-1.5 px-1 py-1 text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                      <span className="size-2 rounded-sm" style={{ background: PHASE_COLORS[ph] }} />
+                      <span className="flex-1">{phaseData[ph]?.label ?? ph}</span>
+                      <span className="font-mono normal-case">{list.length} el.</span>
+                    </div>
+                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-2 px-2 pt-1 text-[9px] uppercase text-muted-foreground">
+                      <span>expressID</span><span className="text-right">m³</span><span className="text-right">m²</span><span className="text-right">custo</span>
+                    </div>
+                    {list.map((e) => {
+                      const c = elementCost(phaseData[ph], e);
+                      return (
+                        <button
+                          key={e.id}
+                          onClick={() => setSelectedElementId(e.id === selectedElementId ? null : e.id)}
+                          className={`w-full text-left px-2 py-1 text-[11px] font-mono grid grid-cols-[1fr_auto_auto_auto] gap-x-2 items-center ${
+                            e.id === selectedElementId ? "bg-accent/10 text-accent" : "hover:bg-muted/50"
+                          }`}
+                          title={e.ifcClass}
+                        >
+                          <span className="truncate">#{e.id}</span>
+                          <span className="text-right">{e.volumeM3.toFixed(2)}</span>
+                          <span className="text-right">{e.areaM2.toFixed(1)}</span>
+                          <span className="text-right text-muted-foreground">{c ? fmtMT(c.total) : "—"}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 ))}
               </div>
               {phaseElements.length > 400 && (
