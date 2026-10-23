@@ -809,7 +809,7 @@ function ProgressDrawer({
 
           <label className="block">
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Observação (opcional)
+              Justificação (obrigatória, mín. 10 caracteres) · {note.trim().length}/10
             </span>
             <textarea
               value={note}
