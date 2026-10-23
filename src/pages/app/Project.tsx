@@ -801,7 +801,7 @@ function PriceCell({
   edited?: PriceOverride;
   /** Ligação directa à Base de Preços; sem ela usa-se fuzzy match por nome. */
   materialId?: string | null;
-  onSave: (price: number, meta: PriceMeta) => Promise<void> | void;
+  onSave: (price: number, meta: PriceMeta) => Promise<string | null | void> | string | null | void;
 }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState("");
@@ -810,6 +810,8 @@ function PriceCell({
   const [reason, setReason] = useState<string>(REASONS[0]);
   const [note, setNote] = useState("");
   const [showSup, setShowSup] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
   const original = edited?.original ?? preco;
   const deviation = newPrice !== null && original > 0 ? ((newPrice - original) / original) * 100 : 0;
 
@@ -819,8 +821,15 @@ function PriceCell({
     setNewPrice(n);
   };
   const commit = async () => {
-    if (newPrice === null) return;
-    await onSave(newPrice, { supplier: supplier || "n/d", reason, note });
+    if (newPrice === null || note.trim().length < 10) return;
+    setSaving(true);
+    setSaveErr(null);
+    const err = await onSave(newPrice, { supplier: supplier || "n/d", reason, note: note.trim() });
+    setSaving(false);
+    if (err) {
+      setSaveErr(err);
+      return;
+    }
     setEditing(false);
     setNewPrice(null);
     setVal("");
@@ -958,15 +967,19 @@ function PriceCell({
                 </select>
               </label>
               <label className="block">
-                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Observações</span>
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Justificação (obrigatória, mín. 10 caracteres)</span>
                 <textarea
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   rows={2}
-                  placeholder="Contexto, prazo de entrega, condições de pagamento…"
+                  placeholder="Porque muda este preço? Ex.: cotação escrita da ferragem X de 12/10"
                   className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-accent focus:outline-none resize-none"
                 />
+                <span className={`text-[11px] ${note.trim().length >= 10 ? "text-muted-foreground" : "text-destructive"}`}>
+                  {note.trim().length}/10 caracteres
+                </span>
               </label>
+              {saveErr && <div className="text-xs text-destructive">{saveErr}</div>}
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
@@ -978,7 +991,8 @@ function PriceCell({
               </button>
               <button
                 onClick={() => void commit()}
-                className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+                disabled={note.trim().length < 10 || saving}
+                className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 disabled:opacity-40"
               >
                 Guardar e registar no Audit Log
               </button>
