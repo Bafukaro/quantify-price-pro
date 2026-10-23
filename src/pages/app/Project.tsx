@@ -74,7 +74,7 @@ export default function Project() {
   );
   const editedPrices = Object.keys(priceOverrides).length;
   // Badge do Audit Log: entradas das últimas 24h.
-  const auditEntries = useAudit();
+  const auditEntries = useServerAudit(project?.id ?? "__none__");
   const audit24h = useMemo(() => {
     const cutoff = Date.now() - 24 * 3600 * 1000;
     return auditEntries.filter((e) => new Date(e.dt.replace(" ", "T")).getTime() >= cutoff).length;
@@ -1351,7 +1351,7 @@ function RelatorioView({
   ivaPct: number;
   contPct: number;
 }) {
-  const entries = useAudit();
+  const entries = useServerAudit(project.id);
   const phases = project.phases?.length ? project.phases : [];
   const avg = phases.length ? Math.round(phases.reduce((a, f) => a + f.pct, 0) / phases.length) : null;
   const geral = total * (1 + ivaPct + contPct);
