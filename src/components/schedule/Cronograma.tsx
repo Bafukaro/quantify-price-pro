@@ -1,3 +1,4 @@
+import { recordAudit } from "@/data/auditLog";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -719,8 +720,23 @@ function ProgressDrawer({
 
   const save = async () => {
     if (!qty || qty <= 0) return setErr("Indique a quantidade realizada hoje.");
+    if (note.trim().length < 10) return setErr("Justificação obrigatória (mínimo 10 caracteres).");
     setBusy(true);
+    setErr(null);
     const prevTotal = accumulated;
+    // Primeiro o Audit Log no servidor: se for recusado, o progresso não é gravado.
+    const ae = await recordAudit({
+      projectId: project.id,
+      action: "progresso",
+      entity: `Progresso registado — ${task.name}`,
+      oldValue: `${prevTotal} ${task.unit}`,
+      newValue: `+${qty} ${task.unit} · total ${prevTotal + Number(qty)} ${task.unit} · ${date}`,
+      justification: note,
+    });
+    if (ae) {
+      setBusy(false);
+      return setErr(ae);
+    }
     const res = await addProgressEntry({
       projectId: project.id,
       taskId: task.id,
@@ -732,17 +748,6 @@ function ProgressDrawer({
     });
     setBusy(false);
     if (res.error) return setErr(res.error);
-    // Entrada imutável no Audit Log.
-    const pct = task.targetQty > 0 ? Math.round((res.total / task.targetQty) * 100) : 0;
-    pushAudit({
-      dt: auditStamp(),
-      user: userEmail,
-      item: `Progresso registado — ${task.name}`,
-      from: `${prevTotal} ${task.unit}`,
-      to: `+${qty} ${task.unit} · total ${res.total} ${task.unit}`,
-      delta: 0,
-      just: `Acumulado: ${res.total} ${task.unit} (${pct}%)${note.trim() ? ` · ${note.trim()}` : ""}`,
-    });
     onClose();
   };
 
