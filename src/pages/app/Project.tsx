@@ -1132,32 +1132,30 @@ function CronogramaView({ project }: { project: ProjectRecord }) {
 
 // ===================== AUDIT LOG =====================
 
-/** Classificação por tipo para filtros e cores. */
-function auditTypeOf(e: { item: string }): "precos" | "progresso" | "projectos" {
-  if (e.item.startsWith("Preço")) return "precos";
-  if (e.item.startsWith("Progresso")) return "progresso";
+/** Classificação por tipo para filtros e cores (pela acção gravada no servidor). */
+function auditTypeOf(e: { item: string; action?: string }): "precos" | "progresso" | "despesas" | "projectos" {
+  if (e.action === "preco" || e.item.startsWith("Preço")) return "precos";
+  if (e.action === "progresso" || e.item.startsWith("Progresso")) return "progresso";
+  if (e.action === "despesa") return "despesas";
   return "projectos";
 }
 
 const AUDIT_DOT: Record<string, string> = {
   precos: "bg-accent",
   progresso: "bg-success",
+  despesas: "bg-warning",
   projectos: "bg-muted-foreground",
 };
 
-/** Hash SHA-256 real (crypto.subtle) de um conjunto de entradas. */
-async function sha256Hex(text: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function AuditLogView({ projectName }: { projectName: string }) {
-  const entries = useAudit();
+function AuditLogView({ projectName, projectId }: { projectName: string; projectId: string }) {
+  const entries = useServerAudit(projectId);
   const [typeF, setTypeF] = useState("todos");
   const [userF, setUserF] = useState("todos");
   const [fromF, setFromF] = useState("");
   const [toF, setToF] = useState("");
-  const [hash, setHash] = useState<string | null>(null);
+  const [verify, setVerify] = useState<{ intact: boolean; message: string } | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [delMsg, setDelMsg] = useState<string | null>(null);
 
   const users = useMemo(() => [...new Set(entries.map((e) => e.user))], [entries]);
 
@@ -1174,18 +1172,15 @@ function AuditLogView({ projectName }: { projectName: string }) {
     [entries, typeF, userF, fromF, toF]
   );
 
-  // Recalcula o hash de integridade sobre as entradas visíveis.
-  useEffect(() => {
-    let alive = true;
-    void sha256Hex(JSON.stringify(filtered)).then((h) => {
-      if (alive) setHash(h);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [filtered]);
-
+  // Hash do topo da cadeia (calculado no servidor) — a última entrada do projecto.
+  const headHash = entries[0]?.hash ?? null;
   const hasFilters = typeF !== "todos" || userF !== "todos" || fromF || toF;
+
+  const runVerify = async () => {
+    setVerifying(true);
+    setVerify(await verifyAuditChain(projectId));
+    setVerifying(false);
+  };
 
   return (
     <div className="space-y-4">
@@ -1193,26 +1188,52 @@ function AuditLogView({ projectName }: { projectName: string }) {
         <div className="flex items-start gap-3 max-w-2xl">
           <ScrollText className="size-5 text-accent mt-0.5" />
           <div className="text-sm text-muted-foreground">
-            Histórico imutável de todas as acções na sua conta. Qualquer alteração &gt;10% exige
-            justificativa. Exportável em PDF com hash de integridade.
+            Registo guardado na base de dados, só de acrescentar: não pode ser alterado nem apagado
+            pela aplicação. Cada entrada leva um hash SHA-256 calculado no servidor e ligado à anterior.
           </div>
         </div>
-        <button
-          onClick={() =>
-            exportAuditPDF({
-              projectName,
-              user: currentAuditUser(),
-              entries: filtered,
-              typeOf: auditTypeOf,
-              hash: hash ?? "a calcular…",
-            })
-          }
-          disabled={filtered.length === 0}
-          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 disabled:opacity-40"
-        >
-          <FileSignature className="size-4" /> Exportar PDF assinado
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => void runVerify()}
+            disabled={verifying}
+            className="inline-flex items-center gap-2 border border-border px-4 py-2 rounded-md text-sm font-medium hover:bg-muted disabled:opacity-40"
+          >
+            <ShieldCheck className="size-4" /> {verifying ? "A verificar…" : "Verificar integridade"}
+          </button>
+          <button
+            onClick={() =>
+              exportAuditPDF({
+                projectName,
+                user: currentAuditUser(),
+                entries: filtered,
+                typeOf: auditTypeOf,
+                hash: headHash ? `${headHash} (topo da cadeia, calculado no servidor)` : "sem entradas",
+              })
+            }
+            disabled={filtered.length === 0}
+            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 disabled:opacity-40"
+          >
+            <FileSignature className="size-4" /> Exportar PDF
+          </button>
+        </div>
       </div>
+
+      {verify && (
+        <div
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            verify.intact ? "border-success/40 bg-success/10 text-success" : "border-destructive/40 bg-destructive/10 text-destructive"
+          }`}
+        >
+          {verify.intact ? "✓ Cadeia " : "✗ "}
+          {verify.message}
+        </div>
+      )}
+      {delMsg && (
+        <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm flex justify-between gap-3">
+          <span>{delMsg}</span>
+          <button onClick={() => setDelMsg(null)} className="text-xs text-accent hover:underline">fechar</button>
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="rounded-xl bg-surface-elevated border border-border shadow-soft p-4 flex flex-wrap items-end gap-3">
@@ -1225,8 +1246,8 @@ function AuditLogView({ projectName }: { projectName: string }) {
           >
             <option value="todos">Todos</option>
             <option value="precos">Preços</option>
+            <option value="despesas">Despesas</option>
             <option value="progresso">Progresso</option>
-            <option value="projectos">Projectos</option>
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -1281,7 +1302,7 @@ function AuditLogView({ projectName }: { projectName: string }) {
         {filtered.length === 0 ? (
           <div className="p-10 text-center text-sm text-muted-foreground">
             {entries.length === 0
-              ? "Sem dados — ainda não há acções registadas nesta conta."
+              ? "Sem dados — ainda não há acções registadas neste projecto."
               : "Sem entradas com os filtros actuais."}
           </div>
         ) : (
@@ -1296,11 +1317,13 @@ function AuditLogView({ projectName }: { projectName: string }) {
                   <th className="px-4 py-3 text-left">Novo</th>
                   <th className="px-4 py-3">Δ%</th>
                   <th className="px-4 py-3 text-left">Justificativa</th>
+                  <th className="px-4 py-3 text-left">Hash</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map((e, i) => (
-                  <tr key={i} className="hover:bg-muted/30">
+                {filtered.map((e: ServerAuditEntry) => (
+                  <tr key={e.id} className="hover:bg-muted/30">
                     <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{e.dt}</td>
                     <td className="px-4 py-3">{e.user}</td>
                     <td className="px-4 py-3 font-medium">
@@ -1311,10 +1334,22 @@ function AuditLogView({ projectName }: { projectName: string }) {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{e.from}</td>
                     <td className="px-4 py-3 font-mono text-xs">{e.to}</td>
-                    <td className={`px-4 py-3 text-center font-mono ${e.delta > 10 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                      {e.delta > 0 ? `+${e.delta}%` : "—"}
+                    <td className={`px-4 py-3 text-center font-mono ${Math.abs(e.delta) > 10 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                      {e.delta !== 0 ? `${e.delta > 0 ? "+" : ""}${e.delta}%` : "—"}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground max-w-sm">{e.just}</td>
+                    <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground" title={e.hash}>
+                      {e.hash.slice(0, 6)}…{e.hash.slice(-4)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={async () => setDelMsg(await tryDeleteAudit(e.id))}
+                        className="text-[11px] text-muted-foreground hover:text-destructive"
+                        title="Demonstração: a base de dados recusa apagar"
+                      >
+                        Tentar apagar
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1324,11 +1359,11 @@ function AuditLogView({ projectName }: { projectName: string }) {
         <div className="bg-muted/30 border-t border-border px-4 py-3 flex items-center justify-between text-xs text-muted-foreground flex-wrap gap-2">
           <span>
             {filtered.length} entradas
-            {hasFilters ? ` (de ${entries.length})` : ""} · só leitura
+            {hasFilters ? ` (de ${entries.length})` : ""} · só acrescentar
           </span>
-          <span className="inline-flex items-center gap-1.5" title={hash ?? ""}>
-            <Lock className="size-3" /> Hash SHA-256:{" "}
-            <code className="font-mono">{hash ? `${hash.slice(0, 4)}…${hash.slice(-4)}` : "…"}</code>
+          <span className="inline-flex items-center gap-1.5" title={headHash ?? ""}>
+            <Lock className="size-3" /> Topo da cadeia (servidor):{" "}
+            <code className="font-mono">{headHash ? `${headHash.slice(0, 6)}…${headHash.slice(-4)}` : "—"}</code>
           </span>
         </div>
       </div>
