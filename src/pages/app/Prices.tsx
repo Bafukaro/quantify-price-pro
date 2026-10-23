@@ -4,18 +4,21 @@ import { Plus, Filter, AlertTriangle, TrendingUp, X, Camera, ChevronDown, Buildi
 import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Legend, BarChart, Bar, Cell as RCell } from "recharts";
 import { addQuote, useQuotes } from "@/data/store";
 
-const months = ["Dez 25", "Jan 26", "Fev 26", "Mar 26", "Abr 26", "Mai 26"];
-
-function genHistory(stats: MaterialStats) {
-  const baseline = stats.median * 0.7;
-  return months.map((m, i) => {
-    const t = i / (months.length - 1);
-    const row: Record<string, number | string> = { month: m, mediana: Math.round(baseline + (stats.median - baseline) * t) };
-    stats.byQuote.forEach(({ supplier, quote }) => {
-      row[supplier.name] = Math.round(quote.price * (0.7 + 0.3 * t) + (i % 2 ? 4 : -3));
-    });
-    return row;
-  });
+/**
+ * Histórico real: só as cotações com data registada, ordenadas cronologicamente.
+ * Cada ponto é uma cotação verdadeira — nada é interpolado nem gerado.
+ */
+function realHistory(stats: MaterialStats) {
+  const dated = stats.byQuote.filter(({ quote }) => /^\d{4}-\d{2}-\d{2}/.test(quote.date ?? ""));
+  const byDate = new Map<string, Record<string, number | string>>();
+  for (const { quote, supplier } of dated) {
+    const d = quote.date.slice(0, 10);
+    const row = byDate.get(d) ?? { date: d };
+    row[supplier.name] = quote.price;
+    byDate.set(d, row);
+  }
+  const rows = [...byDate.values()].sort((x, y) => String(x.date).localeCompare(String(y.date)));
+  return { rows, count: dated.length, enough: dated.length >= 2 && rows.length >= 2 };
 }
 
 const SUPPLIER_COLORS = ["hsl(211 70% 50%)", "hsl(220 10% 50%)", "hsl(0 70% 55%)", "hsl(38 92% 50%)", "hsl(152 55% 38%)"];
@@ -99,7 +102,7 @@ export default function Prices() {
             <tbody className="divide-y divide-border">
               {filtered.map((s) => {
                 const isOpen = expanded === s.material.id;
-                const history = genHistory(s);
+                const history = realHistory(s);
                 return (
                   <Fragment key={s.material.id}>
                     <tr onClick={() => setExpanded(isOpen ? null : s.material.id)} className="hover:bg-muted/30 cursor-pointer">
@@ -184,21 +187,27 @@ export default function Prices() {
 
                           {/* Trend line */}
                           <div>
-                            <div className="text-sm font-medium mb-2">Evolução — últimos 6 meses</div>
+                            <div className="text-sm font-medium mb-2">Evolução pelas datas reais das cotações</div>
+                            {history.enough ? (
                             <div className="h-56 w-full">
                               <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={history} margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
-                                  <XAxis dataKey="month" stroke="hsl(220 10% 50%)" fontSize={11} />
+                                <LineChart data={history.rows} margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
+                                  <XAxis dataKey="date" stroke="hsl(220 10% 50%)" fontSize={11} />
                                   <YAxis stroke="hsl(220 10% 50%)" fontSize={11} />
                                   <Tooltip contentStyle={{ background: "hsl(var(--surface-elevated))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 12 }} />
                                   <Legend wrapperStyle={{ fontSize: 11 }} />
                                   <ReferenceLine y={s.median} stroke="hsl(var(--accent))" strokeDasharray="4 4" label={{ value: "Mediana", fontSize: 10, fill: "hsl(var(--accent))" }} />
                                   {[...new Set(s.byQuote.map((q) => q.supplier.name))].map((name, i) => (
-                                    <Line key={name} type="monotone" dataKey={name} stroke={SUPPLIER_COLORS[i % SUPPLIER_COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} />
+                                    <Line key={name} type="monotone" dataKey={name} connectNulls stroke={SUPPLIER_COLORS[i % SUPPLIER_COLORS.length]} strokeWidth={2} dot={{ r: 2.5 }} />
                                   ))}
                                 </LineChart>
                               </ResponsiveContainer>
                             </div>
+                            ) : (
+                              <div className="h-56 w-full rounded-md border border-dashed border-border flex items-center justify-center text-sm text-muted-foreground">
+                                Histórico insuficiente ({history.count} {history.count === 1 ? "cotação" : "cotações"} com data{history.count >= 2 ? ", todas no mesmo dia" : ""})
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>
