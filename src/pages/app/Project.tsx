@@ -463,9 +463,21 @@ function OrcamentoView({
     original: number,
     price: number,
     meta: { supplier: string; reason: string; note: string }
-  ) => {
+  ): Promise<string | null> => {
     const user = currentAuditUser();
     const at = new Date().toISOString();
+    const delta = original > 0 ? Math.round(((price - original) / original) * 100) : 0;
+    // Primeiro o registo no servidor: se a justificação for recusada, o preço não muda.
+    const err = await recordAudit({
+      projectId,
+      action: "preco",
+      entity: `Preço BoQ ${label}`,
+      oldValue: `${original.toLocaleString("pt-PT")} MT/${un}`,
+      newValue: `${price.toLocaleString("pt-PT")} MT/${un} (${meta.reason} · ${meta.supplier})`,
+      justification: meta.note,
+      delta,
+    });
+    if (err) return err;
     await setProjectPriceOverride(projectId, key, {
       price,
       original,
@@ -475,16 +487,7 @@ function OrcamentoView({
       supplier: meta.supplier,
       note: meta.note || undefined,
     });
-    const delta = original > 0 ? Math.round(((price - original) / original) * 100) : 0;
-    pushAudit({
-      dt: auditStamp(),
-      user,
-      item: `BoQ ${label}`,
-      from: `${original.toLocaleString("pt-PT")} MT/${un}`,
-      to: `${price.toLocaleString("pt-PT")} MT/${un}`,
-      delta,
-      just: `${meta.reason} · ${meta.supplier}${meta.note ? ` · ${meta.note}` : ""}`,
-    });
+    return null;
   };
 
   return (
