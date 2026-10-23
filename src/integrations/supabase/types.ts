@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          delta: number
+          entity: string
+          hash: string
+          id: string
+          justification: string
+          new_value: string
+          old_value: string
+          prev_hash: string
+          project_id: string
+          seq: number
+          user_email: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          delta?: number
+          entity?: string
+          hash?: string
+          id?: string
+          justification?: string
+          new_value?: string
+          old_value?: string
+          prev_hash?: string
+          project_id: string
+          seq?: number
+          user_email?: string
+          user_id?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          delta?: number
+          entity?: string
+          hash?: string
+          id?: string
+          justification?: string
+          new_value?: string
+          old_value?: string
+          prev_hash?: string
+          project_id?: string
+          seq?: number
+          user_email?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       daily_reports: {
         Row: {
           approved_qty: number | null
@@ -278,7 +329,30 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      audit_log_compute_hash: {
+        Args: {
+          _action: string
+          _at: string
+          _entity: string
+          _just: string
+          _new: string
+          _old: string
+          _prev: string
+          _project: string
+          _user: string
+        }
+        Returns: string
+      }
+      verify_audit_chain: {
+        Args: { _project_id: string }
+        Returns: {
+          broken_id: string
+          broken_seq: number
+          intact: boolean
+          message: string
+          total: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
