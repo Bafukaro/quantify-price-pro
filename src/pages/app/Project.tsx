@@ -149,7 +149,7 @@ export default function Project() {
       {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} highlight={boqHighlight} onOpen3D={(phase) => { setPhase3D({ phase, ts: Date.now() }); setActive("vista3d"); }} />}
       {active === "custos" && <CostTracking projectId={project.id} boq={boq} />}
       {active === "cronograma" && <CronogramaView project={project} />}
-      {active === "auditlog" && <AuditLogView projectName={project.name} />}
+      {active === "auditlog" && <AuditLogView projectName={project.name} projectId={project.id} />}
       {active === "relatorio" && <RelatorioView project={project} boq={boq} total={total} ivaPct={ivaPct} contPct={contPct} />}
     </div>
   );
