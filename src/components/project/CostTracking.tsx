@@ -97,8 +97,22 @@ export default function CostTracking({
     const amount = Number(String(form.amount).replace(",", "."));
     if (!form.description.trim()) return setErr("Indique a descrição da despesa.");
     if (!Number.isFinite(amount) || amount <= 0) return setErr("Indique um valor válido em MT.");
+    if (form.note.trim().length < 10) return setErr("Justificação obrigatória (mínimo 10 caracteres).");
     setSaving(true);
     setErr(null);
+    // Primeiro o Audit Log no servidor: se for recusado, a despesa não é gravada.
+    const ae = await recordAudit({
+      projectId,
+      action: "despesa",
+      entity: `Despesa ${form.phase} — ${form.description.trim()}`,
+      oldValue: "—",
+      newValue: `${amount.toLocaleString("pt-PT")} MT · ${form.supplier.trim() || "n/d"} · ${form.invoiceRef.trim() || "sem factura"} · ${form.date}`,
+      justification: form.note,
+    });
+    if (ae) {
+      setSaving(false);
+      return setErr(ae);
+    }
     const e = await addExpense({
       projectId,
       phase: form.phase,
@@ -225,7 +239,7 @@ export default function CostTracking({
               />
             </label>
             <label className="space-y-1 sm:col-span-2">
-              <span className="text-muted-foreground">Nota</span>
+              <span className="text-muted-foreground">Justificação (obrigatória, mín. 10 caracteres) · {form.note.trim().length}/10</span>
               <input
                 value={form.note}
                 onChange={(e) => setForm({ ...form, note: e.target.value })}
