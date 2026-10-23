@@ -3,6 +3,7 @@ import type { PhaseKey } from "@/components/three/BuildingModel";
 import { fmtMT } from "@/data/mock";
 import { useSchedule, realPct } from "@/data/schedule";
 import { useProjectExpenses, addExpense, deleteExpense, type Expense } from "@/data/expenses";
+import { recordAudit } from "@/data/auditLog";
 import type { BoQSource } from "@/lib/boqSource";
 import { phaseLabel, PHASES } from "@/lib/phaseQuantities";
 
