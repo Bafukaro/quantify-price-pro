@@ -22,7 +22,8 @@ import {
 } from "lucide-react";
 import { getStats, setPriceCity, materials, findMaterialFuzzy, RISK_LABEL, RISK_COLOR } from "@/data/priceDb";
 import type { PhaseKey } from "@/components/three/BuildingModel";
-import { useAudit, useProjects, useProjectMeshes, useProjectOverrides, useProjectRebar, useProjectElementGroups, setProjectPhasePct, pushAudit, auditStamp, currentAuditUser } from "@/data/store";
+import { useProjects, useProjectMeshes, useProjectOverrides, useProjectRebar, useProjectElementGroups, setProjectPhasePct, pushAudit, auditStamp, currentAuditUser } from "@/data/store";
+import { useServerAudit, recordAudit, verifyAuditChain, tryDeleteAudit, type ServerAuditEntry } from "@/data/auditLog";
 import { setProjectPriceOverride, useProjectPriceOverrides, type PriceOverride } from "@/data/projects";
 import { exportBoQPDF, exportBoQExcel, exportAuditPDF } from "@/lib/exports";
 import { buildBoQSource, boqGrandTotal, boqLineKey, boqDetailMatKey, type BoQSource } from "@/lib/boqSource";
@@ -1015,7 +1016,7 @@ function DetailedPhaseTable({
 }: {
   sec: DetailedPhase;
   priceOverrides: Record<string, PriceOverride>;
-  onSave: (key: string, label: string, un: string, original: number, price: number, meta: PriceMeta) => Promise<void>;
+  onSave: (key: string, label: string, un: string, original: number, price: number, meta: PriceMeta) => Promise<string | null>;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   return (
