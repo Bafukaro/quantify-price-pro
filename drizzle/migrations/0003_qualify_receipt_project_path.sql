@@ -1,0 +1,1 @@
+ALTER POLICY "Report files require project ownership" ON storage.objects WITH CHECK(bucket_id<>'reports' OR EXISTS(SELECT 1 FROM public.projects p WHERE p.id::text=(storage.foldername(storage.objects.name))[2] AND p.owner_id=auth.uid()));
