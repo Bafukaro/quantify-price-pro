@@ -8,6 +8,7 @@ import {
   Building2,
   LogOut,
   Gauge,
+  Box,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
