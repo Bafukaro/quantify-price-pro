@@ -1144,10 +1144,11 @@ function CronogramaView({ project }: { project: ProjectRecord }) {
 // ===================== AUDIT LOG =====================
 
 /** Classificação por tipo para filtros e cores (pela acção gravada no servidor). */
-function auditTypeOf(e: { item: string; action?: string }): "precos" | "progresso" | "despesas" | "projectos" {
+function auditTypeOf(e: { item: string; action?: string }): "precos" | "progresso" | "despesas" | "quantidades" | "projectos" {
   if (e.action === "preco" || e.item.startsWith("Preço")) return "precos";
   if (e.action === "progresso" || e.item.startsWith("Progresso")) return "progresso";
   if (e.action === "despesa") return "despesas";
+  if (e.action === "quantidade") return "quantidades";
   return "projectos";
 }
 
@@ -1155,6 +1156,7 @@ const AUDIT_DOT: Record<string, string> = {
   precos: "bg-accent",
   progresso: "bg-success",
   despesas: "bg-warning",
+  quantidades: "bg-accent",
   projectos: "bg-muted-foreground",
 };
 
@@ -1259,6 +1261,7 @@ function AuditLogView({ projectName, projectId }: { projectName: string; project
             <option value="precos">Preços</option>
             <option value="despesas">Despesas</option>
             <option value="progresso">Progresso</option>
+            <option value="quantidades">Quantidades manuais</option>
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
