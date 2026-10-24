@@ -59,8 +59,8 @@ function readableValue(raw: string, parsed: unknown): string {
 }
 
 export const auditEntryCount = (count: number) => `${count} ${count === 1 ? "entrada" : "entradas"}`;
-export const presentIntegrityMessage = (message: string) => message.replace(/\bíntegro\b/g, "íntegra")
-  .replace(/(\d+) entrada\(s\)/g, (_, count: string) => auditEntryCount(Number(count)))
-  .replace(/\b1 entradas\b/g, "1 entrada");
+export const presentIntegrityMessage = (message: string) => message.replace(/íntegro/g, "íntegra")
+  .replace(/(\d+) entradas?(?:\(s\))?(?: (verificadas?))?/g, (_, count: string, verified?: string) =>
+    `${auditEntryCount(Number(count))}${verified ? (Number(count) === 1 ? " verificada" : " verificadas") : ""}`);
 export const projectMetadata = (...values: (string | undefined | null)[]) => values
   .map((value) => value?.trim()).filter((value) => value && value !== "—" && value !== "-").join(" · ");
