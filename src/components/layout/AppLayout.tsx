@@ -16,11 +16,13 @@ const nav = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/app/projecto/p-001", label: "Projecto · BoQ", icon: FolderKanban },
   { to: "/app/precos", label: "Base de Preços", icon: Database },
+  { to: "/app/deposito", label: "Depósito", icon: Box },
 ];
 
 const titles: Record<string, string> = {
   "/app": "Dashboard — Visão geral dos projectos",
   "/app/precos": "Base de Dados de Preços",
+  "/app/deposito": "Depósito — Projectos guardados",
 };
 
 export default function AppLayout() {
