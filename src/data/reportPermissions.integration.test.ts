@@ -1,7 +1,6 @@
-// @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { loadEnv } from "vite";
+import { readFileSync } from "node:fs";
 
 // Run against a dedicated demonstration project, never a production report.
 const enabled = Boolean(process.env.SQI_TEST_PROJECT_ID && process.env.LOVABLE_BROWSER_SUPABASE_SESSION_JSON);
@@ -21,7 +20,7 @@ describe.skipIf(!enabled)("Regras de relatórios na base", () => {
   };
   const review = (id: string, status: string, justification: string) => client.rpc("review_report_purchases",{_id:id,_status:status,_approved_qty:5,_reason:"Verificação das regras de relatório.",_justifications:{[purchaseId]:justification}});
   beforeAll(async () => {
-    const env=loadEnv("development",process.cwd(),"VITE_");
+    const env=Object.fromEntries(readFileSync(".env","utf8").split("\n").filter(l=>l.startsWith("VITE_")).map(l=>{const i=l.indexOf("=");return [l.slice(0,i),l.slice(i+1).trim().replace(/^["']|["']$/g,"")];}));
     client=createClient(env.VITE_SUPABASE_URL,env.VITE_SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
     const session=JSON.parse(process.env.LOVABLE_BROWSER_SUPABASE_SESSION_JSON??"{}");
     const auth=await client.auth.setSession(session); if(auth.error)throw auth.error;
