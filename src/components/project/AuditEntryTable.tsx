@@ -14,7 +14,7 @@ export default function AuditEntryTable({ entries, onTryDelete }: {
         <col className="w-[15%]" /><col className="w-[9%]" /><col className="w-[8%]" />
       </colgroup>
       <thead className="bg-muted/60 text-muted-foreground text-left">
-        <tr>{["Data / Hora", "Utilizador", "Item", "Anterior", "Novo", "Δ%", "Justificativa", "Hash", "Acção"].map((label) => <th key={label}>{label}</th>)}</tr>
+        <tr>{["Data / Hora", "Utilizador", "Item", "Anterior", "Novo", "Δ%", "Justificativa", "Hash", "Acção"].map((label) => <th scope="col" key={label}>{label}</th>)}</tr>
       </thead>
       <tbody className="divide-y divide-border">
         {entries.length === 0 && <tr><td colSpan={9} className="text-center text-muted-foreground">Sem entradas neste projecto.</td></tr>}
