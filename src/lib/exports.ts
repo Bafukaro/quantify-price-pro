@@ -7,6 +7,7 @@ import { boqGrandTotal } from "@/lib/boqSource";
 import type { DetailedPhase } from "@/lib/detailedBoq";
 import type { AuditEntry } from "@/data/store";
 import { auditEntryCount, presentAuditEntry } from "@/lib/auditPresentation";
+import { reconciliationRows, type PurchaseSummary } from "@/lib/purchaseReconciliation";
 
 /** Linhas do BoQ detalhado (por elemento extraído do IFC) para exportação. */
 function detailedRows(phases: DetailedPhase[]) {
@@ -158,6 +159,24 @@ export function exportBoQExcel(projectName: string, src: BoQSource, detailed: De
     XLSX.utils.book_append_sheet(wb, det, "BoQ detalhado");
   }
   XLSX.writeFile(wb, `BoQ_${safe(projectName)}.xlsx`);
+}
+
+export function exportReportPDF(projectName: string, src: BoQSource, rows: PurchaseSummary[], totalWithTaxes: number) {
+  const doc = pdfDoc(projectName, src, "Relatório de obra");
+  doc.setFontSize(10);
+  doc.text(`Subtotal: ${fmtMT(boqGrandTotal(src))} · Total c/ contingência 10% e IVA 17%: ${fmtMT(totalWithTaxes)}`,14,40,{maxWidth:180});
+  autoTable(doc,{startY:48,head:[["Fase","Volume m³","Elementos","Total MT"]],body:src.order.map(p=>[src.sections[p].label,src.sections[p].volumeM3.toFixed(2),src.sections[p].elements,fmtMT(src.sections[p].total)]),styles:{fontSize:8}});
+  doc.addPage("a4","landscape");
+  doc.setFontSize(14); doc.text("Reconciliação de compras",14,16);
+  doc.setFontSize(9);
+  doc.text(`Pago abaixo do orçado: ${fmtMT(rows.reduce((s,r)=>s+r.below,0))} · Pago acima do orçado: ${fmtMT(rows.reduce((s,r)=>s+r.above,0))}`,14,23);
+  // Standard PDF fonts have no emoji glyphs; preserve the full status with printable markers.
+  const body = reconciliationRows(rows).map(row => row.map(cell=>cell.replace("⚠","[!]").replace("✅","[OK]")));
+  autoTable(doc,{startY:29,head:[["Artigo BoQ","Preço BoQ","Médio pago","Quantidade","Diferença %","Diferença MT","Estado","Recibo"]],body,styles:{fontSize:7,overflow:"linebreak"}});
+  const end=(doc as unknown as {lastAutoTable:{finalY:number}}).lastAutoTable.finalY;
+  if(end>175) doc.addPage("a4","landscape");
+  doc.text("Diferença a esclarecer. Diferenças usam o preço registado na confirmação; preço BoQ mostra o valor em vigor.",14,end>175?20:end+8,{maxWidth:265});
+  doc.save(`Relatorio_${safe(projectName)}.pdf`);
 }
 
 export function exportPhasePDF(projectName: string, src: BoQSource, phase: keyof BoQSource["sections"]) {
