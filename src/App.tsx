@@ -14,6 +14,7 @@ import Project from "./pages/app/Project.tsx";
 import Prices from "./pages/app/Prices.tsx";
 import Audit from "./pages/app/Audit.tsx";
 import Schedule from "./pages/app/Schedule.tsx";
+import Deposito from "./pages/app/Deposito.tsx";
 import Model3D from "./pages/app/Model3D.tsx";
 import Risk from "./pages/app/Risk.tsx";
 import Compliance from "./pages/app/Compliance.tsx";
