@@ -82,12 +82,16 @@ export type Database = {
           owner_id: string
           photos: Json
           project_id: string
+          purchases: Json
           qty: number
+          reconciliation: Json
           report_date: string
           reporter: string
+          review_reason: string
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
+          submitted_by: string | null
           task_id: string | null
           updated_at: string
         }
@@ -99,12 +103,16 @@ export type Database = {
           owner_id?: string
           photos?: Json
           project_id: string
+          purchases?: Json
           qty?: number
+          reconciliation?: Json
           report_date?: string
           reporter?: string
+          review_reason?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          submitted_by?: string | null
           task_id?: string | null
           updated_at?: string
         }
@@ -116,12 +124,16 @@ export type Database = {
           owner_id?: string
           photos?: Json
           project_id?: string
+          purchases?: Json
           qty?: number
+          reconciliation?: Json
           report_date?: string
           reporter?: string
+          review_reason?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          submitted_by?: string | null
           task_id?: string | null
           updated_at?: string
         }
@@ -188,6 +200,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "project_expenses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_purchase_catalog: {
+        Row: {
+          base_price: number
+          description: string
+          line_key: string
+          market_median: number | null
+          project_id: string
+          project_revision: string
+          unit: string
+        }
+        Insert: {
+          base_price: number
+          description: string
+          line_key: string
+          market_median?: number | null
+          project_id: string
+          project_revision: string
+          unit: string
+        }
+        Update: {
+          base_price?: number
+          description?: string
+          line_key?: string
+          market_median?: number | null
+          project_id?: string
+          project_revision?: string
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_purchase_catalog_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -360,8 +410,23 @@ export type Database = {
         }
         Returns: string
       }
+      purchase_tolerance: { Args: never; Returns: number }
+      review_report_purchases: {
+        Args: {
+          _approved_qty: number
+          _id: string
+          _justifications: Json
+          _reason: string
+          _status: string
+        }
+        Returns: undefined
+      }
       save_manual_line: {
         Args: { _justification: string; _line: Json; _project_id: string }
+        Returns: undefined
+      }
+      sync_purchase_catalog: {
+        Args: { _lines: Json; _project_id: string; _revision: string }
         Returns: undefined
       }
       verify_audit_chain: {
