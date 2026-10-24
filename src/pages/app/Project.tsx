@@ -23,7 +23,7 @@ import {
 import { getStats, setPriceCity, materials, findMaterialFuzzy, RISK_LABEL, RISK_COLOR } from "@/data/priceDb";
 import type { PhaseKey } from "@/components/three/BuildingModel";
 import { useProjects, useProjectMeshes, useProjectOverrides, useProjectRebar, useProjectElementGroups, setProjectPhasePct, pushAudit, auditStamp, currentAuditUser } from "@/data/store";
-import { useServerAudit, recordAudit, verifyAuditChain, tryDeleteAudit, type ServerAuditEntry } from "@/data/auditLog";
+import { useServerAudit, recordAudit, verifyAuditChain, tryDeleteAudit } from "@/data/auditLog";
 import { setProjectPriceOverride, useProjectPriceOverrides, type PriceOverride } from "@/data/projects";
 import { exportBoQPDF, exportBoQExcel, exportAuditPDF } from "@/lib/exports";
 import { buildBoQSource, boqGrandTotal, boqLineKey, boqDetailMatKey, type BoQSource } from "@/lib/boqSource";
@@ -36,6 +36,8 @@ import ManualBudgetEditor from "@/components/project/ManualBudgetEditor";
 import ProjectRetention from "@/components/project/ProjectRetention";
 import { enableManualQuantities } from "@/data/projects";
 import { Button } from "@/components/ui/button";
+import AuditEntryTable from "@/components/project/AuditEntryTable";
+import { auditEntryCount, presentIntegrityMessage, projectMetadata } from "@/lib/auditPresentation";
 
 type TabKey = "resumo" | "vista3d" | "calculos" | "orcamento" | "custos" | "cronograma" | "auditlog" | "relatorio";
 const TABS: { key: TabKey; label: string }[] = [
@@ -101,9 +103,9 @@ export default function Project() {
       <div className="p-6 rounded-xl bg-surface-elevated border border-border shadow-soft">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-              {project.location} · {project.client}
-            </div>
+            {projectMetadata(project.location, project.client) && <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+              {projectMetadata(project.location, project.client)}
+            </div>}
             <h2 className="font-display text-3xl mt-1">{project.name}</h2>
             <div className="text-sm text-muted-foreground mt-1">
               Fase actual: <span className="text-foreground font-medium">{project.phase}</span>
@@ -1238,7 +1240,7 @@ function AuditLogView({ projectName, projectId }: { projectName: string; project
           }`}
         >
           {verify.intact ? "✓ Cadeia " : "✗ "}
-          {verify.message}
+          {presentIntegrityMessage(verify.message)}
         </div>
       )}
       {delMsg && (
@@ -1320,59 +1322,11 @@ function AuditLogView({ projectName, projectId }: { projectName: string; project
               : "Sem entradas com os filtros actuais."}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/60 text-muted-foreground text-xs uppercase tracking-wider">
-                <tr>
-                  <th className="px-4 py-3 text-left">Data / Hora</th>
-                  <th className="px-4 py-3 text-left">Utilizador</th>
-                  <th className="px-4 py-3 text-left">Item</th>
-                  <th className="px-4 py-3 text-left">Anterior</th>
-                  <th className="px-4 py-3 text-left">Novo</th>
-                  <th className="px-4 py-3">Δ%</th>
-                  <th className="px-4 py-3 text-left">Justificativa</th>
-                  <th className="px-4 py-3 text-left">Hash</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filtered.map((e: ServerAuditEntry) => (
-                  <tr key={e.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{e.dt}</td>
-                    <td className="px-4 py-3">{e.user}</td>
-                    <td className="px-4 py-3 font-medium">
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className={`size-1.5 rounded-full ${AUDIT_DOT[auditTypeOf(e)]}`} />
-                        {e.item}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{e.from}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{e.to}</td>
-                    <td className={`px-4 py-3 text-center font-mono ${Math.abs(e.delta) > 10 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                      {e.delta !== 0 ? `${e.delta > 0 ? "+" : ""}${e.delta}%` : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground max-w-sm">{e.just}</td>
-                    <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground" title={e.hash}>
-                      {e.hash.slice(0, 6)}…{e.hash.slice(-4)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={async () => setDelMsg(await tryDeleteAudit(e.id))}
-                        className="text-[11px] text-muted-foreground hover:text-destructive"
-                        title="Demonstração: a base de dados recusa apagar"
-                      >
-                        Tentar apagar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <AuditEntryTable entries={filtered} onTryDelete={async (id) => setDelMsg(await tryDeleteAudit(id))} />
         )}
         <div className="bg-muted/30 border-t border-border px-4 py-3 flex items-center justify-between text-xs text-muted-foreground flex-wrap gap-2">
           <span>
-            {filtered.length} entradas
+            {auditEntryCount(filtered.length)}
             {hasFilters ? ` (de ${entries.length})` : ""} · só acrescentar
           </span>
           <span className="inline-flex items-center gap-1.5" title={headHash ?? ""}>
