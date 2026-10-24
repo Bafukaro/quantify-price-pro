@@ -214,7 +214,7 @@ export function exportAuditPDF(opts: {
 
   autoTable(doc, {
     startY: 30,
-    head: [["Data / Hora", "Utilizador", "Item", "Anterior", "Novo", "Δ%", "Justificativa", "Hash"]],
+    head: [["Data / Hora", "Utilizador", "Item", "Anterior", "Novo", "Variação %", "Justificativa", "Hash"]],
     body: opts.entries.map((e) => {
       const display = presentAuditEntry(e);
       return [
