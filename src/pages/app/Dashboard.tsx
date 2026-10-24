@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { fmtMT } from "@/data/mock";
 import { AlertTriangle, ArrowUpRight, Plus, Building2, Wallet, ScrollText, Upload, X, Box } from "lucide-react";
 import {
   useAudit,
@@ -11,12 +12,10 @@ import {
   pushAudit,
   auditStamp,
 } from "@/data/store";
-import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
   const allProjects = useProjects();
   const projects = allProjects.filter((p) => !p.archived);
-  const archived = allProjects.filter((p) => p.archived);
   const projectsLoaded = useProjectsLoaded();
   const totalGerido = projects.reduce((a, p) => a + p.totalMT, 0);
   const totalAlertas = projects.reduce((a, p) => a + p.alerts, 0);
