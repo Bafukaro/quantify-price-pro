@@ -129,12 +129,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {archived.length > 0 && <section className="space-y-3">
-        <h2 className="font-display text-2xl">Arquivados</h2>
-        <div className="divide-y divide-border border-y border-border">
-          {archived.map((p) => <div key={p.id} className="flex items-center justify-between gap-3 py-4 flex-wrap"><Link className="font-medium hover:text-accent" to={`/app/projecto/${p.id}`}>{p.name}</Link><Button asChild variant="outline" size="sm"><Link to={`/app/projecto/${p.id}?tab=auditlog`}><ScrollText /> Audit Log</Link></Button></div>)}
-        </div>
-      </section>}
       {modalOpen && <NewProjectModal onClose={() => setModalOpen(false)} />}
     </div>
   );
