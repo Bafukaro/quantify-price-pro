@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate, Link } from "react-router-dom";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -8,6 +8,7 @@ import {
   Building2,
   LogOut,
   Gauge,
+  Box,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -15,11 +16,13 @@ const nav = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/app/projecto/p-001", label: "Projecto · BoQ", icon: FolderKanban },
   { to: "/app/precos", label: "Base de Preços", icon: Database },
+  { to: "/app/deposito", label: "Depósito", icon: Box },
 ];
 
 const titles: Record<string, string> = {
   "/app": "Dashboard — Visão geral dos projectos",
   "/app/precos": "Base de Dados de Preços",
+  "/app/deposito": "Depósito — Projectos guardados",
 };
 
 export default function AppLayout() {
@@ -98,6 +101,13 @@ export default function AppLayout() {
               <Bell className="size-4" />
               <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-destructive" />
             </button>
+            <Link
+              to="/app/deposito"
+              title="Depósito"
+              className="md:hidden size-9 grid place-items-center rounded-md hover:bg-muted text-muted-foreground"
+            >
+              <Box className="size-4" />
+            </Link>
             <div className="flex items-center gap-2.5 pl-3 border-l border-border">
               <div className="size-8 rounded-full bg-gradient-accent grid place-items-center text-primary-foreground text-xs font-semibold">
                 {initials}

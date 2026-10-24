@@ -14,6 +14,7 @@ import Project from "./pages/app/Project.tsx";
 import Prices from "./pages/app/Prices.tsx";
 import Audit from "./pages/app/Audit.tsx";
 import Schedule from "./pages/app/Schedule.tsx";
+import Deposito from "./pages/app/Deposito.tsx";
 import Model3D from "./pages/app/Model3D.tsx";
 import Risk from "./pages/app/Risk.tsx";
 import Compliance from "./pages/app/Compliance.tsx";
@@ -52,6 +53,7 @@ const App = () => (
             <Route path="relatorios" element={<Reports />} />
             <Route path="auditoria" element={<Audit />} />
             <Route path="cronograma" element={<Schedule />} />
+            <Route path="deposito" element={<Deposito />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
