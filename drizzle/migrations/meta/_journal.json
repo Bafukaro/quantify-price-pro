@@ -15,6 +15,20 @@
       "when": 1792832784334,
       "tag": "0001_manual_quantities_and_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792876303167,
+      "tag": "0002_daily_purchase_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792876623528,
+      "tag": "0003_qualify_receipt_project_path",
+      "breakpoints": true
     }
   ]
 }

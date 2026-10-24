@@ -25,7 +25,10 @@ import type { PhaseKey } from "@/components/three/BuildingModel";
 import { useProjects, useProjectMeshes, useProjectOverrides, useProjectRebar, useProjectElementGroups, setProjectPhasePct, pushAudit, auditStamp, currentAuditUser } from "@/data/store";
 import { useServerAudit, recordAudit, verifyAuditChain, tryDeleteAudit } from "@/data/auditLog";
 import { setProjectPriceOverride, useProjectPriceOverrides, type PriceOverride } from "@/data/projects";
-import { exportBoQPDF, exportBoQExcel, exportAuditPDF } from "@/lib/exports";
+import { exportBoQPDF, exportBoQExcel, exportAuditPDF, exportReportPDF } from "@/lib/exports";
+import { useSchedule } from "@/data/schedule";
+import { purchaseArticles, reconcileSummary } from "@/lib/purchaseReconciliation";
+import { ReconciliationSummary } from "@/components/project/PurchasePanels";
 import { buildBoQSource, boqGrandTotal, boqLineKey, boqDetailMatKey, type BoQSource } from "@/lib/boqSource";
 import { buildDetailedBoQ, type DetailedPhase } from "@/lib/detailedBoq";
 import type { Project as ProjectRecord } from "@/data/projects";
@@ -1356,6 +1359,9 @@ function RelatorioView({
 }) {
   const entries = useServerAudit(project.id);
   const phases = project.phases?.length ? project.phases : [];
+  const { reports } = useSchedule(project.id);
+  const groups = useProjectElementGroups(project.id);
+  const reconciled = reconcileSummary(purchaseArticles(project,boq,groups),reports.filter(r=>r.status==="confirmado").flatMap(r=>r.reconciliation));
   const avg = phases.length ? Math.round(phases.reduce((a, f) => a + f.pct, 0) / phases.length) : null;
   const geral = total * (1 + ivaPct + contPct);
 
@@ -1366,9 +1372,9 @@ function RelatorioView({
           <FileText className="size-4" />
           Relatório gerado exclusivamente a partir dos dados reais deste projecto
         </div>
-        <button onClick={() => exportBoQPDF(project.name, boq)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90">
+        <Button onClick={() => exportReportPDF(project.name, boq, reconciled, geral)}>
           <Download className="size-4" /> Gerar PDF
-        </button>
+        </Button>
       </div>
       <div className="rounded-xl bg-surface-elevated border border-border shadow-soft p-8 max-w-3xl mx-auto">
         <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">SQI — Relatório de obra</div>
@@ -1424,6 +1430,7 @@ function RelatorioView({
           </p>
         </div>
 
+        <ReconciliationSummary rows={reconciled}/>
         <div className="mt-6 pt-6 border-t border-border text-[11px] text-muted-foreground text-right">
           Gerado por SQI · {new Date().toLocaleDateString("pt-PT")}
         </div>

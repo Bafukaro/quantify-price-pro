@@ -1,4 +1,6 @@
-import { recordAudit } from "@/data/auditLog";
+import { Button } from "@/components/ui/button";
+import { PurchaseEditor, PurchaseReview } from "@/components/project/PurchasePanels";
+import { purchaseArticles, type PurchaseDraft } from "@/lib/purchaseReconciliation";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -29,7 +31,6 @@ import {
   addScheduleTask,
   confirmedQty,
   currentWeek,
-  deleteDailyReport,
   deleteScheduleTask,
   insertGeneratedSchedule,
   isTemplateCritical,
@@ -73,6 +74,8 @@ type Sub = "gantt" | "reports" | "fases";
 export default function Cronograma({ project }: { project: ProjectRecord }) {
   const { tasks, reports, photoUrl } = useSchedule(project.id);
   const { user } = useAuth();
+  const groups = useProjectElementGroups(project.id);
+  const articles = purchaseArticles(project, undefined, groups);
   const [sub, setSub] = useState<Sub>("gantt");
   const phaseNames = (project.phases ?? []).map((p) => p.name);
 
@@ -103,6 +106,7 @@ export default function Cronograma({ project }: { project: ProjectRecord }) {
           photoUrl={photoUrl}
           phaseNames={phaseNames}
           userEmail={user?.email ?? "—"}
+          articles={articles}
         />
       )}
       {sub === "fases" && <PhasesView project={project} />}
@@ -724,20 +728,6 @@ function ProgressDrawer({
     if (note.trim().length < 10) return setErr("Justificação obrigatória (mínimo 10 caracteres).");
     setBusy(true);
     setErr(null);
-    const prevTotal = accumulated;
-    // Primeiro o Audit Log no servidor: se for recusado, o progresso não é gravado.
-    const ae = await recordAudit({
-      projectId: project.id,
-      action: "progresso",
-      entity: `Progresso registado — ${task.name}`,
-      oldValue: `${prevTotal} ${task.unit}`,
-      newValue: `+${qty} ${task.unit} · total ${prevTotal + Number(qty)} ${task.unit} · ${date}`,
-      justification: note,
-    });
-    if (ae) {
-      setBusy(false);
-      return setErr(ae);
-    }
     const res = await addProgressEntry({
       projectId: project.id,
       taskId: task.id,
@@ -836,7 +826,7 @@ function ProgressDrawer({
 
           {qty > 0 && (
             <div className="rounded-lg border border-success/40 bg-success/10 px-3 py-2 text-xs">
-              Após guardar:{" "}
+              Após confirmação:{" "}
               <span className="font-mono font-medium">
                 {previewTotal} {task.unit}
                 {previewPct !== null && ` (${previewPct}%)`}
@@ -852,7 +842,7 @@ function ProgressDrawer({
             disabled={busy}
             className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
-            {busy ? "A guardar…" : "Guardar registo"}
+            {busy ? "A guardar…" : "Enviar relatório Pendente"}
           </button>
         </div>
       </aside>
@@ -879,6 +869,7 @@ function ReportsView({
   photoUrl,
   phaseNames,
   userEmail,
+  articles,
 }: {
   project: ProjectRecord;
   tasks: ScheduleTask[];
@@ -886,6 +877,7 @@ function ReportsView({
   photoUrl: (p: string) => string | undefined;
   phaseNames: string[];
   userEmail: string;
+  articles: ReturnType<typeof purchaseArticles>;
 }) {
   const [form, setForm] = useState({
     taskId: tasks[0]?.id ?? "",
@@ -894,6 +886,7 @@ function ReportsView({
     note: "",
   });
   const [files, setFiles] = useState<File[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseDraft[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState<"pendente" | "todos">("pendente");
@@ -904,6 +897,7 @@ function ReportsView({
   const submit = async () => {
     if (!form.taskId) return setErr("Escolha a tarefa reportada.");
     if (!form.qty || form.qty <= 0) return setErr("Indique as unidades concluídas hoje.");
+    if (purchases.some(p => !p.lineKey || p.quantity <= 0 || p.paidPrice < 0 || !p.supplier.trim() || !p.invoice.trim())) return setErr("Complete artigo, quantidade, preço pago, fornecedor e factura de cada compra.");
     setBusy(true);
     const e = await addDailyReport({
       projectId: project.id,
@@ -913,12 +907,14 @@ function ReportsView({
       note: form.note,
       reporter: userEmail,
       files,
+      purchases,
     });
     setBusy(false);
     if (e) return setErr(e);
     setErr(null);
     setForm({ ...form, qty: 0, note: "" });
     setFiles([]);
+    setPurchases([]);
   };
 
   return (
@@ -978,7 +974,8 @@ function ReportsView({
         {files.length > 0 && (
           <div className="text-[11px] text-muted-foreground">{files.length} foto(s) seleccionada(s)</div>
         )}
-        {err && <div className="text-xs text-destructive">{err}</div>}
+        <PurchaseEditor articles={articles} value={purchases} onChange={setPurchases}/>
+        {err && <div role="alert" className="text-xs text-destructive">{err}</div>}
         <button
           onClick={submit}
           disabled={busy}
@@ -1019,6 +1016,8 @@ function ReportsView({
                 photoUrl={photoUrl}
                 reviewer={userEmail}
                 reports={reports}
+                project={project}
+                articles={articles}
               />
             ))}
           </div>
@@ -1065,14 +1064,28 @@ function ReportCard({
   photoUrl,
   reviewer,
   reports,
+  project,
+  articles,
 }: {
   r: DailyReport;
   task: ScheduleTask | null;
   photoUrl: (p: string) => string | undefined;
   reviewer: string;
   reports: DailyReport[];
+  project: ProjectRecord;
+  articles: ReturnType<typeof purchaseArticles>;
 }) {
   const [qty, setQty] = useState(r.approvedQty ?? r.qty);
+  const [reason, setReason] = useState("");
+  const [justifications, setJustifications] = useState<Record<string,string>>({});
+  const [error, setError] = useState<string|null>(null);
+  const [busy, setBusy] = useState(false);
+  const review = async (status: "confirmado"|"rejeitado") => {
+    setBusy(true);
+    try { setError(await reviewDailyReport(r.id,status,status==="confirmado"?qty:0,reviewer,reason,justifications,project)); }
+    catch { setError("Não foi possível rever. Nenhuma confirmação foi gravada."); }
+    finally { setBusy(false); }
+  };
   const badge =
     r.status === "confirmado"
       ? "border-success/40 text-success"
@@ -1108,6 +1121,9 @@ function ReportCard({
           })}
         </div>
       )}
+      <PurchaseReview purchases={r.purchases} results={r.reconciliation} articles={articles} pending={r.status==="pendente"} justifications={justifications} onJustification={(id,v)=>setJustifications({...justifications,[id]:v})} photoUrl={photoUrl}/>
+      {r.status === "pendente" && <label className="block text-xs">Justificação da revisão (mínimo 10 caracteres)<textarea aria-label="Justificação da revisão" rows={2} value={reason} onChange={e=>setReason(e.target.value)} className="mt-1 w-full rounded border border-border bg-background p-2"/></label>}
+      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
       {r.status === "pendente" ? (
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-xs text-muted-foreground">Unidades confirmadas</label>
@@ -1118,30 +1134,24 @@ function ReportCard({
             onChange={(e) => setQty(Number(e.target.value))}
             className="w-24 px-2 py-1 rounded border border-border bg-background text-sm font-mono"
           />
-          <button
-            onClick={() => reviewDailyReport(r.id, "confirmado", qty, reviewer)}
-            className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded text-xs font-medium hover:opacity-90"
+          <Button size="sm"
+            disabled={busy}
+            onClick={() => void review("confirmado")}
           >
             <Check className="size-3.5" /> Confirmar
-          </button>
-          <button
-            onClick={() => reviewDailyReport(r.id, "rejeitado", 0, reviewer)}
-            className="inline-flex items-center gap-1.5 border border-border px-3 py-1.5 rounded text-xs hover:bg-muted"
+          </Button>
+          <Button size="sm" variant="outline"
+            disabled={busy}
+            onClick={() => void review("rejeitado")}
           >
             <X className="size-3.5" /> Rejeitar
-          </button>
-          <button
-            onClick={() => deleteDailyReport(r.id)}
-            className="ml-auto text-muted-foreground hover:text-destructive"
-            title="Remover relatório"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="text-[11px] text-muted-foreground">
           {r.status === "confirmado" ? `${r.approvedQty ?? r.qty} confirmadas` : "rejeitado"} por{" "}
           {r.reviewedBy || "—"}
+          {r.reviewReason && <p>{r.reviewReason}</p>}
           {task && r.status === "confirmado" && (
             <> · acumulado {confirmedQty(reports, task.id)}/{task.targetQty || "—"} {task.unit}</>
           )}

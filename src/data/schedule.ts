@@ -1,5 +1,8 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { purchaseArticles, type Purchase, type PurchaseDraft, type ReconciledPurchase } from "@/lib/purchaseReconciliation";
+import type { Project } from "@/data/projects";
+import type { ElementGroup } from "@/workers/ifcWorker";
 
 export type ScheduleTask = {
   id: string;
@@ -34,6 +37,10 @@ export type DailyReport = {
   reviewedBy: string | null;
   reviewedAt: string | null;
   createdAt: string;
+  purchases: Purchase[];
+  reconciliation: ReconciledPurchase[];
+  submittedBy: string | null;
+  reviewReason: string;
 };
 
 let tasks: ScheduleTask[] = [];
@@ -80,6 +87,10 @@ const mapReport = (r: any): DailyReport => ({
   reviewedBy: r.reviewed_by ?? null,
   reviewedAt: r.reviewed_at ?? null,
   createdAt: r.created_at ?? "",
+  purchases: r.purchases ?? [],
+  reconciliation: r.reconciliation ?? [],
+  submittedBy: r.submitted_by ?? null,
+  reviewReason: r.review_reason ?? "",
 });
 
 const loadedProjects = new Set<string>();
@@ -101,7 +112,7 @@ export async function loadSchedule(projectId: string, force = false) {
     reports = [...reports.filter((x) => x.projectId !== projectId), ...(r.data ?? []).map(mapReport)];
     loadedProjects.add(projectId);
     emit();
-    void signPhotos((r.data ?? []).flatMap((x: any) => (x.photos as string[]) ?? []));
+    void signPhotos((r.data ?? []).flatMap((x: any) => [...((x.photos as string[]) ?? []), ...(x.purchases ?? []).map((p: Purchase) => p.receipt).filter(Boolean)]));
   } catch (e) {
     console.error("loadSchedule", e);
   } finally {
@@ -303,10 +314,23 @@ export async function addDailyReport(input: {
   note: string;
   reporter: string;
   files: File[];
+  purchases?: PurchaseDraft[];
 }) {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return "Sessão expirada.";
   const paths: string[] = [];
+  const purchases: Purchase[] = [];
+  for (const draft of input.purchases ?? []) {
+    let receipt = "";
+    if (draft.file) {
+      if (!draft.file.type.startsWith("image/") && draft.file.type !== "application/pdf") return "O recibo deve ser uma foto ou PDF.";
+      receipt = `${auth.user.id}/${input.projectId}/receipts/${crypto.randomUUID()}-${draft.file.name.replace(/[^\w.\-]/g, "_")}`;
+      const upload = await supabase.storage.from("reports").upload(receipt, draft.file);
+      if (upload.error) return upload.error.message;
+    }
+    const { file: _file, ...purchase } = draft;
+    purchases.push({ ...purchase, receipt });
+  }
   for (const f of input.files.slice(0, 6)) {
     const path = `${auth.user.id}/${input.projectId}/${Date.now()}-${f.name.replace(/[^\w.\-]/g, "_")}`;
     const { error } = await supabase.storage.from("reports").upload(path, f, { upsert: true });
@@ -324,20 +348,21 @@ export async function addDailyReport(input: {
       note: input.note,
       reporter: input.reporter,
       photos: paths,
+      purchases,
     } as any)
     .select("*")
     .single();
   if (error || !data) return error?.message ?? "Falha ao guardar relatório.";
   reports = [mapReport(data), ...reports];
   emit();
-  void signPhotos(paths);
+  void signPhotos([...paths, ...purchases.map(p => p.receipt).filter(Boolean)]);
   return null;
 }
 
 /**
  * Registo de progresso directo a partir do Gantt ("+ Registar progresso").
  * Diferença para addDailyReport: o registo é feito pelo engenheiro/gestor e
- * entra já confirmado — conta imediatamente para o progresso real da tarefa.
+ * entra Pendente — só conta após revisão transaccional.
  * Foto (opcional, máx. 1) em reports/{user}/{project}/progress/{task}/…
  */
 export async function addProgressEntry(input: {
@@ -358,7 +383,6 @@ export async function addProgressEntry(input: {
     if (error) return { error: `Falha ao carregar foto: ${error.message}`, total: 0 };
     paths.push(path);
   }
-  const reviewedAt = new Date().toISOString();
   const { data, error } = await supabase
     .from("daily_reports")
     .insert({
@@ -367,13 +391,10 @@ export async function addProgressEntry(input: {
       task_id: input.taskId,
       report_date: input.date,
       qty: input.qty,
-      approved_qty: input.qty,
       note: input.note,
       reporter: input.reporter,
       photos: paths,
-      status: "confirmado",
-      reviewed_by: input.reporter,
-      reviewed_at: reviewedAt,
+      status: "pendente",
     } as any)
     .select("*")
     .single();
@@ -388,25 +409,28 @@ export async function reviewDailyReport(
   id: string,
   status: Exclude<ReportStatus, "pendente">,
   approvedQty: number,
-  reviewer: string
+  _reviewer: string,
+  reason: string,
+  justifications: Record<string, string>,
+  project: Project
 ) {
-  const reviewedAt = new Date().toISOString();
-  reports = reports.map((r) =>
-    r.id === id ? { ...r, status, approvedQty, reviewedBy: reviewer, reviewedAt } : r
-  );
-  emit();
-  const { error } = await supabase
-    .from("daily_reports")
-    .update({ status, approved_qty: approvedQty, reviewed_by: reviewer, reviewed_at: reviewedAt } as any)
-    .eq("id", id);
-  if (error) console.error("reviewDailyReport", error);
+  if (status === "confirmado") {
+    const { data, error } = await supabase.from("projects").select("*").eq("id",project.id).single();
+    if (error || !data) return error?.message ?? "Projecto indisponível.";
+    const fresh = { ...project, location: data.location, meshes: data.meshes as Project["meshes"], overrides: data.overrides as Project["overrides"], priceOverrides: data.price_overrides as Project["priceOverrides"], manualLines: data.manual_lines as Project["manualLines"], quantitySource: data.quantity_source as Project["quantitySource"] };
+    const groups = (data.quantities as { elementGroups?: ElementGroup[] } | null)?.elementGroups ?? [];
+    const sync = await supabase.rpc("sync_purchase_catalog", { _project_id: project.id, _revision: data.updated_at, _lines: purchaseArticles(fresh, undefined, groups) });
+    if (sync.error) return sync.error.message;
+  }
+  const { error } = await supabase.rpc("review_report_purchases", { _id: id, _status: status, _approved_qty: approvedQty, _reason: reason, _justifications: justifications });
+  if (error) return error.message;
+  await loadSchedule(project.id, true);
+  return null;
 }
 
 export async function deleteDailyReport(id: string) {
-  reports = reports.filter((r) => r.id !== id);
-  emit();
   const { error } = await supabase.from("daily_reports").delete().eq("id", id);
-  if (error) console.error("deleteDailyReport", error);
+  return error?.message ?? null;
 }
 
 // ---------------- derived progress ----------------
