@@ -63,7 +63,15 @@ export type Database = {
           user_email?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_project_preserve_fk"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       daily_reports: {
         Row: {
@@ -190,11 +198,13 @@ export type Database = {
       projects: {
         Row: {
           alerts: number
+          archived: boolean
           client: string
           created_at: string
           id: string
           legacy_id: string | null
           location: string
+          manual_lines: Json
           meshes: Json
           model_ext: string | null
           model_name: string | null
@@ -207,6 +217,7 @@ export type Database = {
           phases: Json
           price_overrides: Json
           quantities: Json | null
+          quantity_source: string
           spent_pct: number
           structure_type: string | null
           total_mt: number
@@ -214,11 +225,13 @@ export type Database = {
         }
         Insert: {
           alerts?: number
+          archived?: boolean
           client?: string
           created_at?: string
           id?: string
           legacy_id?: string | null
           location?: string
+          manual_lines?: Json
           meshes?: Json
           model_ext?: string | null
           model_name?: string | null
@@ -231,6 +244,7 @@ export type Database = {
           phases?: Json
           price_overrides?: Json
           quantities?: Json | null
+          quantity_source?: string
           spent_pct?: number
           structure_type?: string | null
           total_mt?: number
@@ -238,11 +252,13 @@ export type Database = {
         }
         Update: {
           alerts?: number
+          archived?: boolean
           client?: string
           created_at?: string
           id?: string
           legacy_id?: string | null
           location?: string
+          manual_lines?: Json
           meshes?: Json
           model_ext?: string | null
           model_name?: string | null
@@ -255,6 +271,7 @@ export type Database = {
           phases?: Json
           price_overrides?: Json
           quantities?: Json | null
+          quantity_source?: string
           spent_pct?: number
           structure_type?: string | null
           total_mt?: number
@@ -342,6 +359,10 @@ export type Database = {
           _user: string
         }
         Returns: string
+      }
+      save_manual_line: {
+        Args: { _justification: string; _line: Json; _project_id: string }
+        Returns: undefined
       }
       verify_audit_chain: {
         Args: { _project_id: string }
