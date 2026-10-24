@@ -5,6 +5,7 @@ import { aggregateByPhase, phaseTotal, PHASES } from "@/lib/phaseQuantities";
 import { setPriceCity } from "@/data/priceDb";
 import type { RebarTakeoff } from "@/lib/rebar";
 import type { ElementGroup } from "@/workers/ifcWorker";
+import { manualTotal, type ManualLine } from "@/lib/manualQuantities";
 
 export type ModelExt = "gltf" | "glb" | "obj" | "ifc";
 
@@ -50,6 +51,9 @@ export type Project = {
   overrides: Record<string, PhaseKey>;
   quantities: Record<string, unknown> | null;
   priceOverrides: Record<string, PriceOverride>;
+  archived: boolean;
+  quantitySource: "auto" | "manual";
+  manualLines: ManualLine[];
 };
 
 export type ProjectModelState = {
@@ -108,6 +112,9 @@ function mapRow(r: any): Project {
     overrides: (r.overrides as Record<string, PhaseKey>) ?? {},
     quantities: (r.quantities as Record<string, unknown>) ?? null,
     priceOverrides: (r.price_overrides as Record<string, PriceOverride>) ?? {},
+    archived: r.archived ?? false,
+    quantitySource: r.quantity_source === "manual" ? "manual" : "auto",
+    manualLines: (r.manual_lines as ManualLine[]) ?? [],
   };
 }
 
@@ -240,6 +247,7 @@ export type NewProjectInput = {
   totalMT?: number;
   phase?: string;
   structureType?: string;
+  quantitySource?: "auto" | "manual";
 };
 
 export async function addProject(input: NewProjectInput): Promise<string | null> {
@@ -256,6 +264,7 @@ export async function addProject(input: NewProjectInput): Promise<string | null>
       phase: input.phase ?? "Fase 0 — Preliminares",
       total_mt: input.totalMT ?? 0,
       phases: DEFAULT_PHASES,
+      quantity_source: input.quantitySource ?? "auto",
     } as any)
     .select("*")
     .single();
@@ -431,4 +440,42 @@ export async function removeProjectModel(projectId: string) {
     { model_path: null, model_name: null, model_ext: null, model_size: null, meshes: [], quantities: null, total_mt: 0 },
     { model: null, meshes: [], quantities: null, totalMT: 0 }
   );
+}
+
+export async function enableManualQuantities(id: string): Promise<string | null> {
+  const p = projects.find((x) => x.id === id);
+  if (!p || p.model || p.meshes.length) return "A inserção manual só está disponível sem modelo 3D.";
+  const { error } = await supabase.from("projects").update({ quantity_source: "manual", total_mt: manualTotal(p.manualLines, p.location) }).eq("id", id);
+  if (error) return error.message;
+  await loadProjects(true);
+  return null;
+}
+
+export async function saveManualLine(projectId: string, line: ManualLine, justification: string): Promise<string | null> {
+  if (justification.trim().length < 10) return "Justificação obrigatória (mínimo 10 caracteres).";
+  const { error } = await supabase.rpc("save_manual_line", { _project_id: projectId, _line: JSON.parse(JSON.stringify(line)), _justification: justification });
+  if (error) return error.message;
+  await loadProjects(true);
+  const p = projects.find((x) => x.id === projectId);
+  if (p) {
+    const total = p.manualLines.reduce((sum, l) => sum + l.quantity * (p.priceOverrides[`${l.phase}::${l.id}`]?.price ?? (l.quantity ? manualTotal([l], p.location) / l.quantity : 0)), 0);
+    await patchProject(projectId, { total_mt: total }, { totalMT: total });
+  }
+  return null;
+}
+
+export async function archiveProject(id: string): Promise<string | null> {
+  const { error } = await supabase.from("projects").update({ archived: true }).eq("id", id).select("id").single();
+  if (error) return error.message;
+  await loadProjects(true);
+  return null;
+}
+
+export async function deleteProject(id: string): Promise<string | null> {
+  // The foreign key enforces this even if a concurrent audit entry is inserted.
+  const { error } = await supabase.from("projects").delete().eq("id", id).select("id").single();
+  if (error) return error.code === "23503" ? "Este projecto tem registos associados e não pode ser apagado. Arquive-o." : error.message;
+  modelUrls.delete(id);
+  await loadProjects(true);
+  return null;
 }

@@ -31,11 +31,12 @@ export default function Audit() {
             }}
             className="bg-background border border-border rounded-md px-2.5 py-2 text-sm"
           >
-            {projects.map((p) => (
+            <optgroup label="Projectos activos">{projects.filter((p) => !p.archived).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
-            ))}
+            ))}</optgroup>
+            <optgroup label="Arquivados">{projects.filter((p) => p.archived).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
           </select>
           <button
             disabled={busy || pid === "__none__"}

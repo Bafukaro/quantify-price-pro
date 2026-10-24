@@ -43,7 +43,7 @@ import {
   type DailyReport,
   type ScheduleTask,
 } from "@/data/schedule";
-import { generateDynamicSchedule, type GenResult } from "@/lib/scheduleGen";
+import { generateDynamicSchedule, generateManualSchedule, type GenResult } from "@/lib/scheduleGen";
 
 const START_KEY = (id: string) => `sqi.schedule.start.${id}`;
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -179,12 +179,13 @@ function GanttView({
   // Fonte de quantidades do modelo carregado (mesma do BoQ).
   const groups = useProjectElementGroups(project.id);
   const byPhase = useProjectQuantities(project.id);
-  const canGenerate = groups.length > 0;
+  const manual = project.quantitySource === "manual" && !project.meshes.length;
+  const canGenerate = manual ? project.manualLines.length > 0 : groups.length > 0;
 
   const runGenerator = () => {
     setGenBusy(true);
     try {
-      const res = generateDynamicSchedule({ groups, byPhase: (byPhase ?? {}) as any });
+      const res = manual ? generateManualSchedule(project.manualLines) : generateDynamicSchedule({ groups, byPhase: (byPhase ?? {}) as any });
       if (res.tasks.length === 0) setErr("Não foi possível gerar — sem quantidades extraídas do modelo.");
       else setGenPreview(res);
     } finally {

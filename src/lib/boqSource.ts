@@ -4,6 +4,7 @@ import { setPriceCity } from "@/data/priceDb";
 import { aggregateByPhase, phaseDesc, phaseLabel, phaseLines, PHASES } from "@/lib/phaseQuantities";
 import type { StoredMeshInfo, PriceOverride } from "@/data/projects";
 import type { RebarTakeoff } from "@/lib/rebar";
+import { manualLinePrice, type ManualLine } from "@/lib/manualQuantities";
 
 export type BoQLine = {
   item: string;
@@ -36,6 +37,7 @@ export type BoQSection = {
 };
 
 export type BoQSource = {
+  source?: "model" | "manual" | "study";
   sections: Record<PhaseKey, BoQSection>;
   order: PhaseKey[];
   hasReal: boolean;
@@ -58,15 +60,24 @@ export function buildBoQSource(opts: {
   overrides: Record<string, PhaseKey>;
   rebar?: RebarTakeoff | null;
   priceOverrides?: Record<string, PriceOverride>;
+  quantitySource?: "auto" | "manual";
+  manualLines?: ManualLine[];
 }): BoQSource {
   setPriceCity(opts.location);
   const po = opts.priceOverrides ?? {};
   const hasReal = opts.meshes.length > 0;
+  const isManual = !hasReal && opts.quantitySource === "manual";
   const { byPhase, elementsTotal, invalidTotal } = aggregateByPhase(opts.meshes as any, opts.overrides);
   const sections = {} as Record<PhaseKey, BoQSection>;
   for (const p of PHASES) {
     const q = byPhase[p];
-    const lines: BoQLine[] = hasReal
+    const lines: BoQLine[] = isManual
+      ? (opts.manualLines ?? []).filter((l) => l.phase === p).map((l) => {
+          const ov = po[boqLineKey(p, l.id)];
+          const price = manualLinePrice(l, opts.location);
+          return { item: l.id, desc: l.description, un: l.unit, qty: l.quantity, preco: ov?.price ?? price, priced: !!ov || price > 0, materialId: l.materialId, isSteel: false, edited: ov };
+        })
+      : hasReal
       ? phaseLines(p, q).map((l) => {
           const ov = po[boqLineKey(p, l.item)];
           return {
@@ -94,8 +105,8 @@ export function buildBoQSource(opts: {
         });
     sections[p] = {
       key: p,
-      label: hasReal ? phaseLabel(p) : phase3DInfo[p].label,
-      desc: hasReal ? phaseDesc(p) : phase3DInfo[p].desc,
+      label: hasReal || isManual ? phaseLabel(p) : phase3DInfo[p].label,
+      desc: isManual ? "Quantidades manuais (sem modelo 3D)" : hasReal ? phaseDesc(p) : phase3DInfo[p].desc,
       lines,
       total: lines.reduce((a, l) => a + l.qty * l.preco, 0),
       volumeM3: q.volumeM3,
@@ -105,13 +116,14 @@ export function buildBoQSource(opts: {
     };
   }
   return {
+    source: isManual ? "manual" : hasReal ? "model" : "study",
     sections,
     order: PHASES,
     hasReal,
     elementsTotal,
     invalidTotal,
     rebar: opts.rebar ?? null,
-    originLabel: hasReal
+    originLabel: isManual ? "Quantidades manuais (sem modelo 3D)" : hasReal
       ? `Quantidades extraídas do modelo 3D carregado (${elementsTotal} elementos) × preços da Base de Preços`
       : "CASO DE ESTUDO — sem modelo 3D carregado (valores de referência, não extraídos)",
   };
