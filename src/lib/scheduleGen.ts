@@ -2,6 +2,8 @@ import type { PhaseKey } from "@/components/three/BuildingModel";
 import { buildDetailedBoQ } from "@/lib/detailedBoq";
 import type { DetailedPhase } from "@/lib/detailedBoq";
 import type { ElementGroup } from "@/workers/ifcWorker";
+import type { ManualLine } from "@/lib/manualQuantities";
+import { PHASES } from "@/lib/phaseQuantities";
 
 /**
  * Cronograma dinâmico gerado a partir das quantidades reais do modelo
@@ -27,6 +29,18 @@ export type GeneratedTask = {
 };
 
 export type GenResult = { tasks: GeneratedTask[]; warnings: string[] };
+
+/** Manual lines are work targets, never converted into fictitious IFC elements. */
+export function generateManualSchedule(lines: ManualLine[]): GenResult {
+  const labels: Record<PhaseKey, GenPhase> = { fundacao: "Fundação", pilares: "Estrutura", lajes: "Estrutura", alvenaria: "Alvenaria", cobertura: "Cobertura", instalacoes: "Instalações", acabamentos: "Acabamentos" };
+  let week = 0;
+  const tasks: GeneratedTask[] = PHASES.flatMap((phase) => lines.filter((l) => l.phase === phase).map((l) => ({
+    name: l.description, phase: labels[phase], startWeek: week++, durWeeks: 1,
+    kind: "trabalho" as const, critical: false, targetQty: l.quantity, unit: l.unit,
+    why: "Quantidade manual; duração inicial de 1 semana a ajustar pelo engenheiro.",
+  })));
+  return { tasks, warnings: ["Quantidades manuais: durações iniciais a ajustar. Rendimentos e tempos de cura não são inferidos da descrição livre."] };
+}
 
 // ---- Rendimentos de produção (Moçambique — mão-de-obra local) ----
 const R = {

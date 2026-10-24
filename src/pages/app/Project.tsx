@@ -32,6 +32,10 @@ import type { Project as ProjectRecord } from "@/data/projects";
 import Model3D from "@/pages/app/Model3D";
 import Cronograma from "@/components/schedule/Cronograma";
 import CostTracking from "@/components/project/CostTracking";
+import ManualBudgetEditor from "@/components/project/ManualBudgetEditor";
+import ProjectRetention from "@/components/project/ProjectRetention";
+import { enableManualQuantities } from "@/data/projects";
+import { Button } from "@/components/ui/button";
 
 type TabKey = "resumo" | "vista3d" | "calculos" | "orcamento" | "custos" | "cronograma" | "auditlog" | "relatorio";
 const TABS: { key: TabKey; label: string }[] = [
@@ -57,6 +61,7 @@ export default function Project() {
   // Preços resolvidos pela localização do projecto (Maputo vs Lichinga, etc.)
   setPriceCity(project?.location);
   const [active, setActive] = useState<TabKey>("resumo");
+  const [manualError, setManualError] = useState<string | null>(null);
   // Clique num elemento 3D → destacar a secção correspondente no Orçamento.
   const [phase3D, setPhase3D] = useState<{ phase: PhaseKey; ts: number } | null>(null);
   const [boqHighlight, setBoqHighlight] = useState<{ phase: PhaseKey; ts: number } | null>(null);
@@ -69,8 +74,8 @@ export default function Project() {
 
   // Fonte única do BoQ — a mesma que alimenta o ecrã e as exportações.
   const boq = useMemo(
-    () => buildBoQSource({ location: project?.location, meshes, overrides, rebar, priceOverrides }),
-    [project?.location, meshes, overrides, rebar, priceOverrides]
+    () => buildBoQSource({ location: project?.location, meshes, overrides, rebar, priceOverrides, quantitySource: project?.quantitySource, manualLines: project?.manualLines }),
+    [project?.location, project?.quantitySource, project?.manualLines, meshes, overrides, rebar, priceOverrides]
   );
   const editedPrices = Object.keys(priceOverrides).length;
   // Badge do Audit Log: entradas das últimas 24h.
@@ -103,6 +108,7 @@ export default function Project() {
             <div className="text-sm text-muted-foreground mt-1">
               Fase actual: <span className="text-foreground font-medium">{project.phase}</span>
             </div>
+            <div className="mt-3"><ProjectRetention project={project} /></div>
           </div>
           <div className="flex gap-2">
             <button onClick={() => exportBoQExcel(project.name, boq)} className="inline-flex items-center gap-2 border border-border px-4 py-2 rounded-md text-sm hover:bg-muted">
@@ -146,7 +152,12 @@ export default function Project() {
         />
       )}
       {active === "calculos" && <CalculosView />}
-      {active === "orcamento" && <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} highlight={boqHighlight} onOpen3D={(phase) => { setPhase3D({ phase, ts: Date.now() }); setActive("vista3d"); }} />}
+      {active === "orcamento" && <>
+        {!project.model && !meshes.length && project.quantitySource !== "manual" && <Button variant="outline" onClick={async () => setManualError(await enableManualQuantities(project.id))}><Pencil /> Inserir quantidades manualmente</Button>}
+        {manualError && <p role="alert" className="text-sm text-destructive">{manualError}</p>}
+        {boq.source === "manual" && <ManualBudgetEditor project={project} />}
+        <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} highlight={boqHighlight} onOpen3D={(phase) => { setPhase3D({ phase, ts: Date.now() }); setActive("vista3d"); }} />
+      </>}
       {active === "custos" && <CostTracking projectId={project.id} boq={boq} />}
       {active === "cronograma" && <CronogramaView project={project} />}
       {active === "auditlog" && <AuditLogView projectName={project.name} projectId={project.id} />}
