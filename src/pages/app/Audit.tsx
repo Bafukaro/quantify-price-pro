@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useProjects } from "@/data/store";
-import { useServerAudit, verifyAuditChain } from "@/data/auditLog";
+import { useServerAudit, verifyAuditChain, tryDeleteAudit } from "@/data/auditLog";
 import { Lock, ShieldCheck } from "lucide-react";
+import AuditEntryTable from "@/components/project/AuditEntryTable";
+import { auditEntryCount, presentIntegrityMessage } from "@/lib/auditPresentation";
+import { Button } from "@/components/ui/button";
 
 export default function Audit() {
   const projects = useProjects();
@@ -10,6 +13,7 @@ export default function Audit() {
   const entries = useServerAudit(pid);
   const [verify, setVerify] = useState<{ intact: boolean; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [delMsg, setDelMsg] = useState<string | null>(null);
   const head = entries[0]?.hash;
 
   return (
@@ -38,7 +42,7 @@ export default function Audit() {
             ))}</optgroup>
             <optgroup label="Arquivados">{projects.filter((p) => p.archived).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
           </select>
-          <button
+          <Button
             disabled={busy || pid === "__none__"}
             onClick={async () => {
               setBusy(true);
@@ -48,7 +52,7 @@ export default function Audit() {
             className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 disabled:opacity-40"
           >
             <ShieldCheck className="size-4" /> {busy ? "A verificar…" : "Verificar integridade"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -59,50 +63,15 @@ export default function Audit() {
           }`}
         >
           {verify.intact ? "✓ Cadeia " : "✗ "}
-          {verify.message}
+          {presentIntegrityMessage(verify.message)}
         </div>
       )}
 
+      {delMsg && <div role="status" className="border border-border bg-muted/40 px-4 py-3 text-sm">{delMsg}</div>}
       <div className="rounded-xl bg-surface-elevated border border-border shadow-soft overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/60 text-muted-foreground text-xs uppercase tracking-wider">
-              <tr>
-                <th className="px-4 py-3 text-left">Data / Hora</th>
-                <th className="px-4 py-3 text-left">Utilizador</th>
-                <th className="px-4 py-3 text-left">Item alterado</th>
-                <th className="px-4 py-3 text-left">Anterior</th>
-                <th className="px-4 py-3 text-left">Novo</th>
-                <th className="px-4 py-3 text-left">Justificativa</th>
-                <th className="px-4 py-3 text-left">Hash</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {entries.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-                    Sem entradas neste projecto.
-                  </td>
-                </tr>
-              )}
-              {entries.map((e) => (
-                <tr key={e.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{e.dt}</td>
-                  <td className="px-4 py-3">{e.user}</td>
-                  <td className="px-4 py-3 font-medium">{e.item}</td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{e.from}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{e.to}</td>
-                  <td className="px-4 py-3 text-muted-foreground max-w-sm">{e.just}</td>
-                  <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground" title={e.hash}>
-                    {e.hash.slice(0, 6)}…{e.hash.slice(-4)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AuditEntryTable entries={entries} onTryDelete={async (id) => setDelMsg(await tryDeleteAudit(id))} />
         <div className="bg-muted/30 border-t border-border px-4 py-3 flex items-center justify-between text-xs text-muted-foreground">
-          <span>{entries.length} entradas · só acrescentar</span>
+          <span>{auditEntryCount(entries.length)} · só acrescentar</span>
           <span className="font-mono" title={head ?? ""}>
             Topo da cadeia: {head ? `${head.slice(0, 6)}…${head.slice(-4)}` : "—"}
           </span>

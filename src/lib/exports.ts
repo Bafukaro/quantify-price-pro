@@ -6,6 +6,7 @@ import type { BoQSection, BoQSource } from "@/lib/boqSource";
 import { boqGrandTotal } from "@/lib/boqSource";
 import type { DetailedPhase } from "@/lib/detailedBoq";
 import type { AuditEntry } from "@/data/store";
+import { auditEntryCount, presentAuditEntry } from "@/lib/auditPresentation";
 
 /** Linhas do BoQ detalhado (por elemento extraído do IFC) para exportação. */
 function detailedRows(phases: DetailedPhase[]) {
@@ -200,32 +201,36 @@ const AUDIT_TYPE_COLORS: Record<string, [number, number, number]> = {
 export function exportAuditPDF(opts: {
   projectName: string;
   user: string;
-  entries: AuditEntry[];
+  entries: (AuditEntry & { hash?: string })[];
   typeOf: (e: AuditEntry) => string;
   hash: string;
 }) {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ orientation: "landscape" });
   doc.setFontSize(13);
   doc.text("SQI — Sistema Quantitativo Integrado | Audit Log", 14, 14);
   doc.setFontSize(9);
   doc.text(`Projecto: ${opts.projectName} | Exportado por: ${opts.user} | ${new Date().toLocaleString("pt-PT")}`, 14, 20);
-  doc.text(`${opts.entries.length} entradas (filtros activos aplicados)`, 14, 25);
+  doc.text(`${auditEntryCount(opts.entries.length)} (filtros activos aplicados)`, 14, 25);
 
   autoTable(doc, {
     startY: 30,
-    head: [["Data / Hora", "Utilizador", "Item", "Anterior", "Novo", "Δ%", "Justificativa"]],
-    body: opts.entries.map((e) => [
+    head: [["Data / Hora", "Utilizador", "Item", "Anterior", "Novo", "Δ%", "Justificativa", "Hash"]],
+    body: opts.entries.map((e) => {
+      const display = presentAuditEntry(e);
+      return [
       e.dt,
       e.user,
       e.item,
-      e.from,
-      e.to,
-      e.delta > 0 ? `+${e.delta}%` : "—",
+      display.from,
+      display.to,
+      display.deltaLabel,
       e.just,
-    ]),
+      e.hash ? `${e.hash.slice(0, 6)}…${e.hash.slice(-4)}` : "—",
+    ]; }),
     styles: { fontSize: 7, cellPadding: 1.5 },
     headStyles: { fillColor: [30, 50, 90] },
-    columnStyles: { 6: { cellWidth: 45 } },
+    columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 31 }, 2: { cellWidth: 30 }, 3: { cellWidth: 42 }, 4: { cellWidth: 42 }, 5: { cellWidth: 16 }, 6: { cellWidth: 58 }, 7: { cellWidth: 25 } },
+    margin: { bottom: 20 },
     didParseCell: (data) => {
       if (data.section !== "body") return;
       const entry = opts.entries[data.row.index];
@@ -243,11 +248,12 @@ export function exportAuditPDF(opts: {
     doc.setPage(i);
     doc.setFontSize(7);
     doc.setTextColor(110);
-    doc.text(`Hash SHA-256: ${opts.hash}`, 14, 290);
+    const height = doc.internal.pageSize.getHeight();
+    doc.text(`Hash SHA-256: ${opts.hash}`, 14, height - 12, { maxWidth: 269 });
     doc.text(
       "Documento gerado automaticamente pelo SQI. Qualquer alteração a este documento invalida o hash de integridade.",
       14,
-      294
+      height - 5
     );
   }
   doc.save(`audit-log-${safe(opts.projectName)}.pdf`);
