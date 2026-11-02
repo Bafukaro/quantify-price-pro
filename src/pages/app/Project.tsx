@@ -25,12 +25,13 @@ import type { PhaseKey } from "@/components/three/BuildingModel";
 import { useProjects, useProjectMeshes, useProjectOverrides, useProjectRebar, useProjectElementGroups, setProjectPhasePct, pushAudit, auditStamp, currentAuditUser } from "@/data/store";
 import { useServerAudit, recordAudit, verifyAuditChain, tryDeleteAudit } from "@/data/auditLog";
 import { setProjectPriceOverride, useProjectPriceOverrides, type PriceOverride } from "@/data/projects";
-import { exportBoQPDF, exportBoQExcel, exportAuditPDF, exportReportPDF } from "@/lib/exports";
+import { exportBoQPDF, exportBoQExcel, exportAuditPDF, exportReportPDF, exportReportExcel } from "@/lib/exports";
 import { useSchedule } from "@/data/schedule";
 import { purchaseArticles, reconcileSummary } from "@/lib/purchaseReconciliation";
 import { ReconciliationSummary } from "@/components/project/PurchasePanels";
 import { buildBoQSource, boqGrandTotal, boqLineKey, boqDetailMatKey, type BoQSource } from "@/lib/boqSource";
-import { buildDetailedBoQ, type DetailedPhase } from "@/lib/detailedBoq";
+import { buildDetailedBoQ, detailedGrandTotal, UNCLASSIFIED_PHASE, type DetailedPhase } from "@/lib/detailedBoq";
+import { buildReportSource, taxBreakdown, taxLines, taxIncidenceLabel, DEFAULT_TAX, type TaxConfig } from "@/lib/reportSource";
 import type { Project as ProjectRecord } from "@/data/projects";
 import Model3D from "@/pages/app/Model3D";
 import Cronograma from "@/components/schedule/Cronograma";
@@ -74,8 +75,19 @@ export default function Project() {
     const t = params.get("tab") as TabKey | null;
     if (t && TABS.some((x) => x.key === t)) setActive(t);
   }, [params]);
-  const ivaPct = 0.17;
-  const contPct = 0.1;
+  // Contingência e IVA configuráveis (por defeito 10% e 16%, IVA sobre a Base) —
+  // guardados por projecto no navegador; a mesma config alimenta Orçamento e Relatório.
+  const taxKey = `sqi.tax.${project?.id ?? "none"}`;
+  const [tax, setTax] = useState<TaxConfig>(() => {
+    try {
+      const raw = localStorage.getItem(taxKey);
+      if (raw) return { ...DEFAULT_TAX, ...JSON.parse(raw) } as TaxConfig;
+    } catch { /* preferir o defeito */ }
+    return DEFAULT_TAX;
+  });
+  useEffect(() => {
+    try { localStorage.setItem(taxKey, JSON.stringify(tax)); } catch { /* sessão apenas */ }
+  }, [taxKey, tax]);
 
   // Fonte única do BoQ — a mesma que alimenta o ecrã e as exportações.
   const boq = useMemo(
@@ -161,12 +173,12 @@ export default function Project() {
         {!project.model && !meshes.length && project.quantitySource !== "manual" && <Button variant="outline" onClick={async () => setManualError(await enableManualQuantities(project.id))}><Pencil /> Inserir quantidades manualmente</Button>}
         {manualError && <p role="alert" className="text-sm text-destructive">{manualError}</p>}
         {boq.source === "manual" && <ManualBudgetEditor project={project} />}
-        <OrcamentoView ivaPct={ivaPct} contPct={contPct} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} highlight={boqHighlight} onOpen3D={(phase) => { setPhase3D({ phase, ts: Date.now() }); setActive("vista3d"); }} />
+        <OrcamentoView tax={tax} projectName={project.name} projectId={project.id} boq={boq} priceOverrides={priceOverrides} highlight={boqHighlight} onOpen3D={(phase) => { setPhase3D({ phase, ts: Date.now() }); setActive("vista3d"); }} />
       </>}
       {active === "custos" && <CostTracking projectId={project.id} boq={boq} />}
       {active === "cronograma" && <CronogramaView project={project} />}
       {active === "auditlog" && <AuditLogView projectName={project.name} projectId={project.id} />}
-      {active === "relatorio" && <RelatorioView project={project} boq={boq} total={total} ivaPct={ivaPct} contPct={contPct} />}
+      {active === "relatorio" && <RelatorioView project={project} boq={boq} tax={tax} onTaxChange={setTax} priceOverrides={priceOverrides} />}
     </div>
   );
 }
