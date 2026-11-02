@@ -166,22 +166,92 @@ export function exportBoQExcel(projectName: string, src: BoQSource, detailed: De
   XLSX.writeFile(wb, `BoQ_${safe(projectName)}.xlsx`);
 }
 
-export function exportReportPDF(projectName: string, src: BoQSource, rows: PurchaseSummary[], totalWithTaxes: number) {
-  const doc = pdfDoc(projectName, src, "Relatório de obra");
-  doc.setFontSize(10);
-  doc.text(`Subtotal: ${fmtMT(boqGrandTotal(src))} · Total c/ contingência 10% e IVA 17%: ${fmtMT(totalWithTaxes)}`,14,40,{maxWidth:180});
-  autoTable(doc,{startY:48,head:[["Fase","Volume m³","Elementos","Total MT"]],body:src.order.map(p=>[src.sections[p].label,src.sections[p].volumeM3.toFixed(2),src.sections[p].elements,fmtMT(src.sections[p].total)]),styles:{fontSize:8}});
-  doc.addPage("a4","landscape");
+/**
+ * PDF do Relatório — mesma fonte e mesma função do Orçamento detalhado
+ * (buildReportSource + taxBreakdown). Fórmula por linhas com a incidência
+ * activa assinalada; quantidades reais dos artigos em vez de volume geométrico.
+ */
+export function exportReportPDF(opts: {
+  projectName: string;
+  originLabel: string;
+  report: ReportSource;
+  breakdown: TaxBreakdown;
+  rows: PurchaseSummary[];
+}) {
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text("Relatório de obra — " + opts.projectName, 14, 16);
+  doc.setFontSize(9);
+  doc.text("Origem dos dados: " + opts.originLabel, 14, 22, { maxWidth: 180 });
+  doc.text("Gerado: " + new Date().toLocaleString("pt-PT"), 14, 27);
+  doc.text("Incidência do IVA: " + taxIncidenceLabel(opts.breakdown.cfg), 14, 32);
+
+  autoTable(doc, {
+    startY: 38,
+    head: [["Componente", "Valor"]],
+    body: taxLines(opts.breakdown).map((l) => [l.label, fmtMT(l.value)]),
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [30, 50, 90] },
+    columnStyles: { 1: { halign: "right" } },
+  });
+  const fy = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+
+  doc.setFontSize(12);
+  doc.text("Custo por fase", 14, fy);
+  const unclass = opts.report.sections.find((s) => s.key === UNCLASSIFIED_PHASE);
+  autoTable(doc, {
+    startY: fy + 4,
+    head: [["Fase", "Quantidades dos artigos", "Elementos", "Custo (MT)"]],
+    body: [
+      ...opts.report.sections.map((s) => [s.label, reportArticlesText(s), s.elements, fmtMT(s.total)]),
+      ["TOTAL GERAL", "", "", fmtMT(opts.report.subtotal)],
+    ],
+    styles: { fontSize: 8, overflow: "linebreak" },
+    headStyles: { fillColor: [30, 50, 90] },
+    columnStyles: { 1: { cellWidth: 90 }, 2: { halign: "right" }, 3: { halign: "right" } },
+  });
+  const py = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+  if (unclass) {
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text(
+      `Não classificado: ${(unclass.classes ?? []).join(", ")} — ${unclass.elements} elementos, custo de ${fmtMT(unclass.total)}. Orçados com a tarifa de Acabamentos por falta de regra própria; requer revisão.`,
+      14,
+      py,
+      { maxWidth: 180 }
+    );
+    doc.setTextColor(0);
+  }
+
+  doc.addPage("a4", "landscape");
   doc.setFontSize(14); doc.text("Reconciliação de compras",14,16);
   doc.setFontSize(9);
-  doc.text(`Pago abaixo do orçado: ${fmtMT(rows.reduce((s,r)=>s+r.below,0))} · Pago acima do orçado: ${fmtMT(rows.reduce((s,r)=>s+r.above,0))}`,14,23);
+  doc.text(`Pago abaixo do orçado: ${fmtMT(opts.rows.reduce((s,r)=>s+r.below,0))} · Pago acima do orçado: ${fmtMT(opts.rows.reduce((s,r)=>s+r.above,0))}`,14,23);
   // Standard PDF fonts have no emoji glyphs; preserve the full status with printable markers.
-  const body = reconciliationRows(rows).map(row => row.map(cell=>cell.replace("⚠","[!]").replace("✅","[OK]")));
+  const body = reconciliationRows(opts.rows).map(row => row.map(cell=>cell.replace("⚠","[!]").replace("✅","[OK]")));
   autoTable(doc,{startY:29,head:[["Artigo BoQ","Preço BoQ","Médio pago","Quantidade","Diferença %","Diferença MT","Estado","Recibo"]],body,styles:{fontSize:7,overflow:"linebreak"}});
   const end=(doc as unknown as {lastAutoTable:{finalY:number}}).lastAutoTable.finalY;
   if(end>175) doc.addPage("a4","landscape");
   doc.text("Diferença a esclarecer. Diferenças usam o preço registado na confirmação; preço BoQ mostra o valor em vigor.",14,end>175?20:end+8,{maxWidth:265});
-  doc.save(`Relatorio_${safe(projectName)}.pdf`);
+  doc.save(`Relatorio_${safe(opts.projectName)}.pdf`);
+}
+
+/** Excel do Relatório — mesma fonte e mesma fórmula do ecrã e do PDF. */
+export function exportReportExcel(projectName: string, report: ReportSource, breakdown: TaxBreakdown) {
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([
+    ["Relatório de obra — " + projectName],
+    ["Incidência do IVA: " + taxIncidenceLabel(breakdown.cfg)],
+    [],
+    ["Componente", "Valor (MT)"],
+    ...taxLines(breakdown).map((l) => [l.label, Math.round(l.value)]),
+    [],
+    ["Fase", "Quantidades dos artigos", "Elementos", "Custo (MT)"],
+    ...report.sections.map((s) => [s.label, reportArticlesText(s), s.elements, Math.round(s.total)]),
+    ["TOTAL GERAL", "", "", Math.round(report.subtotal)],
+  ]);
+  XLSX.utils.book_append_sheet(wb, ws, "Relatório");
+  XLSX.writeFile(wb, `Relatorio_${safe(projectName)}.xlsx`);
 }
 
 export function exportPhasePDF(projectName: string, src: BoQSource, phase: keyof BoQSource["sections"]) {
