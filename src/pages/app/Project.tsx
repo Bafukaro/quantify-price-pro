@@ -654,22 +654,28 @@ function OrcamentoView({
       })}
       <div className="rounded-xl bg-primary text-primary-foreground p-6 shadow-elegant">
         <div className="text-[11px] uppercase tracking-[0.18em] text-white/60">Total geral do projecto</div>
+        <div className="text-[10px] text-white/60 mt-1">
+          {detailed.length > 0 ? "Fonte: BoQ detalhado (inclui preços editados) · " : ""}
+          {taxIncidenceLabel(tax)}
+        </div>
         <div className="grid sm:grid-cols-4 gap-4 mt-4">
           <div>
             <div className="text-[10px] uppercase tracking-wider text-white/60">Subtotal</div>
-            <div className="font-display text-lg">{fmtMT(subtotalGeral)}</div>
+            <div className="font-display text-lg">{fmtMT(bd.subtotal)}</div>
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-white/60">Contingência {(contPct * 100).toFixed(0)}%</div>
-            <div className="font-display text-lg">{fmtMT(contingencia)}</div>
+            <div className="text-[10px] uppercase tracking-wider text-white/60">Contingência {(tax.contPct * 100).toLocaleString("pt-PT", { maximumFractionDigits: 2 })}%</div>
+            <div className="font-display text-lg">{fmtMT(bd.contingencia)}</div>
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-white/60">IVA {(ivaPct * 100).toFixed(0)}%</div>
-            <div className="font-display text-lg">{fmtMT(iva)}</div>
+            <div className="text-[10px] uppercase tracking-wider text-white/60">
+              IVA {(tax.ivaPct * 100).toLocaleString("pt-PT", { maximumFractionDigits: 2 })}% {tax.onBase ? "s/ base" : "s/ subtotal"}
+            </div>
+            <div className="font-display text-lg">{fmtMT(bd.iva)}</div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wider text-white/60">Total</div>
-            <div className="font-display text-2xl text-accent">{fmtMT(total)}</div>
+            <div className="font-display text-2xl text-accent">{fmtMT(bd.total)}</div>
           </div>
         </div>
       </div>
