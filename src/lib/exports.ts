@@ -3,7 +3,6 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { fmtMT } from "@/data/mock";
 import type { BoQSection, BoQSource } from "@/lib/boqSource";
-import { boqGrandTotal } from "@/lib/boqSource";
 import { buildReportSource, excelResumoRows, reportArticlesText, taxIncidenceLabel, taxLines, type ReportSource, type TaxBreakdown } from "@/lib/reportSource";
 import { UNCLASSIFIED_PHASE, type DetailedPhase } from "@/lib/detailedBoq";
 import type { AuditEntry } from "@/data/store";
@@ -256,7 +255,7 @@ export function exportReportExcel(projectName: string, report: ReportSource, bre
 
 export function exportPhasePDF(projectName: string, src: BoQSource, phase: keyof BoQSource["sections"]) {
   const sec = src.sections[phase];
-  const doc = pdfDoc(projectName, src, `Cotação parcial — fase ${sec.label}`);
+  const doc = pdfDoc(projectName, src.originLabel, `Cotação parcial — fase ${sec.label}`);
   const y = addSection(doc, src, sec, 40);
   doc.setFontSize(13);
   doc.text(`TOTAL DA FASE (${sec.label}): ` + fmtMT(sec.total), 14, y);
