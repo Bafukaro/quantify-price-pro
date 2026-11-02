@@ -433,8 +433,7 @@ function CalculosView() {
 
 // ===================== ORÇAMENTO =====================
 function OrcamentoView({
-  ivaPct,
-  contPct,
+  tax,
   projectName,
   projectId,
   boq,
@@ -443,8 +442,7 @@ function OrcamentoView({
   onOpen3D,
 }: {
   onOpen3D?: (phase: PhaseKey) => void;
-  ivaPct: number;
-  contPct: number;
+  tax: TaxConfig;
   projectName: string;
   projectId: string;
   boq: BoQSource;
@@ -452,12 +450,11 @@ function OrcamentoView({
   /** Fase a destacar após clique num elemento 3D (scroll + highlight 3s). */
   highlight?: { phase: PhaseKey; ts: number } | null;
 }) {
-  const subtotalGeral = boqGrandTotal(boq);
-  const contingencia = subtotalGeral * contPct;
-  const iva = subtotalGeral * ivaPct;
-  const total = subtotalGeral + contingencia + iva;
   const groups = useProjectElementGroups(projectId);
   const detailed = useMemo(() => buildDetailedBoQ(groups, undefined, priceOverrides), [groups, priceOverrides]);
+  // Total na MESMA fonte do Orçamento detalhado (fonte de verdade) quando há modelo.
+  const subtotalGeral = detailed.length > 0 ? detailedGrandTotal(detailed) : boqGrandTotal(boq);
+  const bd = taxBreakdown(subtotalGeral, tax);
   const [mode, setMode] = useState<"fases" | "detalhado">(groups.length ? "detalhado" : "fases");
   // Banner de transparência do aço — dispensável por fase, só nesta sessão.
   const [steelDismissed, setSteelDismissed] = useState<Set<string>>(new Set());
