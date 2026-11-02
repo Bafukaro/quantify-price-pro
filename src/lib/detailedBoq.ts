@@ -37,7 +37,7 @@ export type DetailedLine = {
 };
 
 export type DetailedPhase = {
-  phase: PhaseKey;
+  phase: DetailedPhaseKey;
   label: string;
   lines: DetailedLine[];
   count: number;
@@ -62,6 +62,20 @@ const CLASS_PHASE: { rx: RegExp; phase: PhaseKey }[] = [
 export function phaseOfClass(ifcClass: string): PhaseKey {
   for (const r of CLASS_PHASE) if (r.rx.test(ifcClass)) return r.phase;
   return "acabamentos";
+}
+
+/**
+ * Fase pseudo para classes IFC sem correspondência em nenhuma regra. São
+ * mostradas numa secção própria "Não classificado" — nunca dentro de
+ * Acabamentos. Mantêm a tarifa de Acabamentos por falta de regra própria
+ * (mesmo custo que antes tinha o caminho de fallback), sinalizada para revisão.
+ */
+export const UNCLASSIFIED_PHASE = "nao_classificado";
+export type DetailedPhaseKey = PhaseKey | typeof UNCLASSIFIED_PHASE;
+
+export function classifyPhase(ifcClass: string): DetailedPhaseKey {
+  for (const r of CLASS_PHASE) if (r.rx.test(ifcClass)) return r.phase;
+  return UNCLASSIFIED_PHASE;
 }
 
 const n2 = (v: number) => v.toFixed(2).replace(".", ",");
@@ -202,13 +216,16 @@ export function buildDetailedBoQ(
   overridePhase?: (ifcClass: string) => PhaseKey | undefined,
   priceOverrides?: Record<string, PriceOverride>
 ): DetailedPhase[] {
-  const byPhase = new Map<PhaseKey, DetailedLine[]>();
+  const byPhase = new Map<DetailedPhaseKey, DetailedLine[]>();
   const sorted = [...groups].sort((a, b) => b.volumeM3 - a.volumeM3 || b.count - a.count);
 
   sorted.forEach((g) => {
-    const phase = overridePhase?.(g.ifcClass) ?? phaseOfClass(g.ifcClass);
+    const phase = overridePhase?.(g.ifcClass) ?? classifyPhase(g.ifcClass);
+    // Classes sem correspondência mantêm a tarifa de Acabamentos (mesmo custo do
+    // antigo fallback), mas ficam numa secção própria assinalada para revisão.
+    const pricingPhase: PhaseKey = phase === UNCLASSIFIED_PHASE ? "acabamentos" : phase;
     const d = describe(g);
-    const materials = phaseLines(phase, {
+    const materials = phaseLines(pricingPhase, {
       meshes: 1,
       elements: g.count,
       volumeM3: g.volumeM3,
@@ -235,9 +252,13 @@ export function buildDetailedBoQ(
     byPhase.set(phase, list);
   });
 
-  return PHASES.filter((p) => (byPhase.get(p)?.length ?? 0) > 0).map((p, pi) => {
-    const lines = (byPhase.get(p) ?? []).map((l, i) => {
-      const code = `${pi + 1}.${i + 1}`;
+  const sectionOf = (
+    phase: DetailedPhaseKey,
+    raw: DetailedLine[],
+    codePrefix: (i: number) => string
+  ): DetailedPhase => {
+    const lines = raw.map((l, i) => {
+      const code = codePrefix(i);
       // Aplica substituições manuais de preço (persistidas no projecto).
       const materials = l.materials.map((m) => {
         const ov = priceOverrides?.[boqDetailMatKey(code, m.item)];
@@ -251,15 +272,22 @@ export function buildDetailedBoQ(
       };
     });
     return {
-      phase: p,
-      label: phaseLabel(p),
+      phase,
+      label: phase === UNCLASSIFIED_PHASE ? "Não classificado" : phaseLabel(phase),
       lines,
       count: lines.reduce((a, l) => a + l.count, 0),
       volumeM3: lines.reduce((a, l) => a + l.volumeM3, 0),
       areaM2: lines.reduce((a, l) => a + l.areaM2, 0),
       total: lines.reduce((a, l) => a + l.total, 0),
     };
-  });
+  };
+
+  const sections: DetailedPhase[] = PHASES.filter((p) => (byPhase.get(p)?.length ?? 0) > 0).map(
+    (p, pi) => sectionOf(p, byPhase.get(p) ?? [], (i) => `${pi + 1}.${i + 1}`)
+  );
+  const unclassified = byPhase.get(UNCLASSIFIED_PHASE);
+  if (unclassified?.length) sections.push(sectionOf(UNCLASSIFIED_PHASE, unclassified, (i) => `NC.${i + 1}`));
+  return sections;
 }
 
 export const detailedGrandTotal = (phases: DetailedPhase[]) =>
