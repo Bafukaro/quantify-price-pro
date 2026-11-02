@@ -102,7 +102,7 @@ function addSection(doc: jsPDF, src: BoQSource, sec: BoQSection, y: number) {
 }
 
 export function exportBoQPDF(projectName: string, src: BoQSource, detailed: DetailedPhase[] = []) {
-  const doc = pdfDoc(projectName, src, "Orçamento completo — todas as fases construtivas");
+  const doc = pdfDoc(projectName, src.originLabel, "Orçamento completo — todas as fases construtivas");
   let y = 40;
   src.order.forEach((p) => {
     if (y > 240) {
@@ -150,10 +150,14 @@ export function exportBoQExcel(projectName: string, src: BoQSource, detailed: De
     });
     XLSX.utils.book_append_sheet(wb, ws, sec.label.slice(0, 28));
   });
-  const resumo = XLSX.utils.json_to_sheet(
-    src.order.map((p) => ({ Fase: src.sections[p].label, "Total (MT)": Math.round(src.sections[p].total) }))
-  );
-  XLSX.utils.sheet_add_aoa(resumo, [["TOTAL GERAL", Math.round(boqGrandTotal(src))]], { origin: -1 });
+  // Resumo na MESMA fonte do Orçamento detalhado (inclui preços editados).
+  const report = buildReportSource(src, detailed.length ? detailed : null);
+  const resumo = XLSX.utils.aoa_to_sheet([
+    ["Resumo — mesma fonte do Orçamento detalhado (fonte de verdade)"],
+    [src.originLabel],
+    [],
+  ]);
+  XLSX.utils.sheet_add_json(resumo, excelResumoRows(report), { origin: "A4" });
   XLSX.utils.book_append_sheet(wb, resumo, "Resumo");
   if (detailed.length) {
     const det = XLSX.utils.json_to_sheet(detailedRows(detailed));
