@@ -37,7 +37,7 @@ export type DetailedLine = {
 };
 
 export type DetailedPhase = {
-  phase: PhaseKey;
+  phase: DetailedPhaseKey;
   label: string;
   lines: DetailedLine[];
   count: number;
@@ -62,6 +62,20 @@ const CLASS_PHASE: { rx: RegExp; phase: PhaseKey }[] = [
 export function phaseOfClass(ifcClass: string): PhaseKey {
   for (const r of CLASS_PHASE) if (r.rx.test(ifcClass)) return r.phase;
   return "acabamentos";
+}
+
+/**
+ * Fase pseudo para classes IFC sem correspondência em nenhuma regra. São
+ * mostradas numa secção própria "Não classificado" — nunca dentro de
+ * Acabamentos. Mantêm a tarifa de Acabamentos por falta de regra própria
+ * (mesmo custo que antes tinha o caminho de fallback), sinalizada para revisão.
+ */
+export const UNCLASSIFIED_PHASE = "nao_classificado";
+export type DetailedPhaseKey = PhaseKey | typeof UNCLASSIFIED_PHASE;
+
+export function classifyPhase(ifcClass: string): DetailedPhaseKey {
+  for (const r of CLASS_PHASE) if (r.rx.test(ifcClass)) return r.phase;
+  return UNCLASSIFIED_PHASE;
 }
 
 const n2 = (v: number) => v.toFixed(2).replace(".", ",");
