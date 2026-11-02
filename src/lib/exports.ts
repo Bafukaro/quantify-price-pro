@@ -4,7 +4,8 @@ import * as XLSX from "xlsx";
 import { fmtMT } from "@/data/mock";
 import type { BoQSection, BoQSource } from "@/lib/boqSource";
 import { boqGrandTotal } from "@/lib/boqSource";
-import type { DetailedPhase } from "@/lib/detailedBoq";
+import { buildReportSource, excelResumoRows, reportArticlesText, taxIncidenceLabel, taxLines, type ReportSource, type TaxBreakdown } from "@/lib/reportSource";
+import { UNCLASSIFIED_PHASE, type DetailedPhase } from "@/lib/detailedBoq";
 import type { AuditEntry } from "@/data/store";
 import { auditEntryCount, presentAuditEntry } from "@/lib/auditPresentation";
 import { reconciliationRows, type PurchaseSummary } from "@/lib/purchaseReconciliation";
@@ -71,13 +72,13 @@ function sectionMeta(src: BoQSource, sec: BoQSection) {
   return `${sec.desc} · ${sec.volumeM3.toFixed(2)} m³ · ${sec.areaM2.toFixed(1)} m² · ${sec.elements} elementos`;
 }
 
-function pdfDoc(projectName: string, src: BoQSource, subtitle: string) {
+function pdfDoc(projectName: string, originLabel: string, subtitle: string) {
   const doc = new jsPDF();
   doc.setFontSize(16);
   doc.text("Bill of Quantities — " + projectName, 14, 16);
   doc.setFontSize(9);
   doc.text(subtitle, 14, 22);
-  doc.text("Origem dos dados: " + src.originLabel, 14, 27, { maxWidth: 180 });
+  doc.text("Origem dos dados: " + originLabel, 14, 27, { maxWidth: 180 });
   doc.text("Gerado: " + new Date().toLocaleString("pt-PT"), 14, 32);
   return doc;
 }
