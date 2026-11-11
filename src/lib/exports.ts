@@ -3,6 +3,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { fmtMT } from "@/data/mock";
 import type { BoQSection, BoQSource } from "@/lib/boqSource";
+import { boqGrandTotal } from "@/lib/boqSource";
 import { buildReportSource, excelResumoRows, reportArticlesText, taxIncidenceLabel, taxLines, type ReportSource, type TaxBreakdown } from "@/lib/reportSource";
 import { UNCLASSIFIED_PHASE, type DetailedPhase } from "@/lib/detailedBoq";
 import type { AuditEntry } from "@/data/store";

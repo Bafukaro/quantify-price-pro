@@ -40,6 +40,7 @@ import ManualBudgetEditor from "@/components/project/ManualBudgetEditor";
 import ProjectRetention from "@/components/project/ProjectRetention";
 import { enableManualQuantities } from "@/data/projects";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import AuditEntryTable from "@/components/project/AuditEntryTable";
 import { auditEntryCount, presentIntegrityMessage, projectMetadata } from "@/lib/auditPresentation";
 
@@ -1362,23 +1363,25 @@ function AuditLogView({ projectName, projectId }: { projectName: string; project
 function RelatorioView({
   project,
   boq,
-  total,
-  ivaPct,
-  contPct,
+  tax,
+  onTaxChange,
+  priceOverrides,
 }: {
   project: ProjectRecord;
   boq: BoQSource;
-  total: number;
-  ivaPct: number;
-  contPct: number;
+  tax: TaxConfig;
+  onTaxChange: (next: TaxConfig) => void;
+  priceOverrides: Record<string, PriceOverride>;
 }) {
   const entries = useServerAudit(project.id);
   const phases = project.phases?.length ? project.phases : [];
   const { reports } = useSchedule(project.id);
   const groups = useProjectElementGroups(project.id);
+  const detailed = useMemo(() => buildDetailedBoQ(groups, undefined, priceOverrides), [groups, priceOverrides]);
+  const report = useMemo(() => buildReportSource(boq, detailed.length ? detailed : null), [boq, detailed]);
+  const breakdown = taxBreakdown(report.subtotal, tax);
   const reconciled = reconcileSummary(purchaseArticles(project,boq,groups),reports.filter(r=>r.status==="confirmado").flatMap(r=>r.reconciliation));
   const avg = phases.length ? Math.round(phases.reduce((a, f) => a + f.pct, 0) / phases.length) : null;
-  const geral = total * (1 + ivaPct + contPct);
 
   return (
     <div className="space-y-5">
@@ -1387,19 +1390,49 @@ function RelatorioView({
           <FileText className="size-4" />
           Relatório gerado exclusivamente a partir dos dados reais deste projecto
         </div>
-        <Button onClick={() => exportReportPDF(project.name, boq, reconciled, geral)}>
-          <Download className="size-4" /> Gerar PDF
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => exportReportExcel(project.name, report, breakdown)}>
+            <FileSpreadsheet className="size-4" /> Exportar Excel
+          </Button>
+          <Button onClick={() => exportReportPDF({ projectName: project.name, originLabel: boq.originLabel, report, breakdown, rows: reconciled })}>
+            <Download className="size-4" /> Gerar PDF
+          </Button>
+        </div>
       </div>
       <div className="rounded-xl bg-surface-elevated border border-border shadow-soft p-8 max-w-3xl mx-auto">
         <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">SQI — Relatório de obra</div>
         <h2 className="font-display text-2xl mt-1">{project.name}</h2>
         <div className="text-sm text-muted-foreground">{project.location} · {project.client}</div>
 
-        <div className="grid sm:grid-cols-3 gap-4 mt-6 pt-6 border-t border-border">
-          <Metric label="Subtotal do orçamento" value={fmtMT(total)} />
-          <Metric label={`Total c/ contingência ${(contPct * 100).toFixed(0)}% e IVA ${(ivaPct * 100).toFixed(0)}%`} value={fmtMT(geral)} />
+        <div className="mt-6 pt-6 border-t border-border">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <span className="text-sm font-medium">Incidência do IVA</span>
+            <div className="flex items-center gap-3 text-sm">
+              <span className={!tax.onBase ? "font-medium text-foreground" : "text-muted-foreground"}>Sobre subtotal</span>
+              <Switch
+                checked={tax.onBase}
+                onCheckedChange={(onBase) => onTaxChange({ ...tax, onBase })}
+                aria-label="Aplicar IVA sobre a Base com contingência"
+              />
+              <span className={tax.onBase ? "font-medium text-foreground" : "text-muted-foreground"}>Sobre Base</span>
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <Metric label="Subtotal do orçamento" value={fmtMT(report.subtotal)} />
+            <Metric label="Total com contingência e IVA" value={fmtMT(breakdown.total)} />
           <Metric label="Progresso médio declarado" value={avg === null ? "sem dados" : `${avg}%`} />
+          </div>
+          <table className="w-full text-sm mt-5">
+            <tbody className="divide-y divide-border">
+              {taxLines(breakdown).map((line) => (
+                <tr key={line.label} className={line.label === "Total" ? "font-semibold" : ""}>
+                  <td className="py-2">{line.label}</td>
+                  <td className="py-2 text-right font-mono">{fmtMT(line.value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-xs text-muted-foreground mt-2">{taxIncidenceLabel(tax)}</p>
         </div>
 
         <div className="mt-6 pt-6 border-t border-border">
@@ -1411,15 +1444,14 @@ function RelatorioView({
           <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Custo por fase</div>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-border">
-              {boq.order.map((p) => {
-                const sec = boq.sections[p];
+              {report.sections.map((section) => {
                 return (
-                  <tr key={p}>
-                    <td className="py-2">{sec.label}</td>
+                  <tr key={section.key}>
+                    <td className="py-2">{section.label}</td>
                     <td className="py-2 text-right text-xs text-muted-foreground font-mono">
-                      {boq.hasReal ? `${sec.volumeM3.toFixed(2)} m³ · ${sec.elements} el.` : "sem modelo"}
+                      {section.articles.map((article) => `${article.qty.toLocaleString("pt-PT", { maximumFractionDigits: 2 })} ${article.un}`).join(" · ") || "—"}
                     </td>
-                    <td className="py-2 text-right font-mono">{fmtMT(sec.total)}</td>
+                    <td className="py-2 text-right font-mono">{fmtMT(section.total)}</td>
                   </tr>
                 );
               })}
