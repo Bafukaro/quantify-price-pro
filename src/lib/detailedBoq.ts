@@ -16,7 +16,7 @@ import type { PriceOverride } from "@/data/projects";
 
 export type DetailedLine = {
   code: string;
-  phase: PhaseKey;
+  phase: DetailedPhaseKey;
   ifcClass: string;
   /** artigo descritivo, ex. "Pilar em betão armado 0,30×0,30 m · h=3,00 m" */
   desc: string;
